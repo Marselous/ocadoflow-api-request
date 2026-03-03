@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OcadoFlow — API Gateway & Microservices Demo</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #07090d;
+  --bg2:      #0c0f16;
+  --bg3:      #111520;
+  --surface:  #161c2a;
+  --border:   #1d2538;
+  --border2:  #253045;
+  --teal:     #00e5b4;
+  --orange:   #ff7040;
+  --blue:     #3d9bff;
+  --purple:   #9b6dff;
+  --yellow:   #ffc940;
+  --red:      #ff4d6a;
+  --green:    #39d98a;
+  --text:     #dce6f5;
+  --muted:    #5a6a88;
+  --muted2:   #3a4a68;
+  --mono:     'JetBrains Mono', monospace;
+  --display:  'Syne', sans-serif;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* scanline overlay */
+body::before {
+  content:'';
+  position:fixed; inset:0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,229,180,0.012) 2px, rgba(0,229,180,0.012) 4px);
+  pointer-events:none; z-index:999;
+}
+
+/* top glow */
+body::after {
+  content:'';
+  position:fixed; top:0; left:20%; right:20%; height:1px;
+  background: linear-gradient(90deg, transparent, var(--teal), transparent);
+  box-shadow: 0 0 60px 4px rgba(0,229,180,0.25);
+  z-index:100;
+}
+
+/* ── HEADER ── */
+header {
+  position: sticky; top:0; z-index:90;
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 14px 32px;
+  background: rgba(7,9,13,0.92);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+}
+.logo {
+  display:flex; align-items:center; gap:12px;
+}
+.logo-mark {
+  width:32px; height:32px;
+  border: 1px solid var(--teal);
+  display:grid; place-items:center;
+  font-size:14px; font-weight:700; color:var(--teal);
+  position:relative;
+}
+.logo-mark::before {
+  content:'';
+  position:absolute; inset:-4px;
+  border: 1px solid rgba(0,229,180,0.2);
+}
+.logo-text { font-family: var(--display); font-size:18px; font-weight:800; letter-spacing:-0.02em; }
+.logo-text span { color: var(--teal); }
+.header-meta { display:flex; gap:24px; align-items:center; }
+.badge {
+  font-size:10px; padding:3px 10px;
+  border:1px solid; letter-spacing:0.1em; text-transform:uppercase;
+}
+.badge-green { border-color: rgba(57,217,138,0.4); color: var(--green); background: rgba(57,217,138,0.06); }
+.badge-blue  { border-color: rgba(61,155,255,0.4); color: var(--blue); background: rgba(61,155,255,0.06); }
+.version { font-size:10px; color:var(--muted); letter-spacing:0.1em; }
+
+/* ── LAYOUT ── */
+.layout {
+  display:grid;
+  grid-template-columns: 280px 1fr 320px;
+  grid-template-rows: auto 1fr;
+  min-height: calc(100vh - 57px);
+}
+
+/* ── LEFT PANEL — Auth & Roles ── */
+.panel-left {
+  border-right:1px solid var(--border);
+  background: var(--bg2);
+  overflow-y:auto;
+}
+.panel-section {
+  border-bottom:1px solid var(--border);
+  padding:20px;
+}
+.panel-title {
+  font-size:9px; letter-spacing:0.25em; text-transform:uppercase;
+  color:var(--muted); margin-bottom:16px;
+  display:flex; align-items:center; gap:8px;
+}
+.panel-title::before { content:''; width:3px; height:3px; background:var(--teal); border-radius:50%; }
+
+/* Role selector */
+.role-card {
+  padding:12px 14px; margin-bottom:8px;
+  border:1px solid var(--border);
+  cursor:pointer; transition: all 0.2s;
+  position:relative; overflow:hidden;
+}
+.role-card:hover { border-color: var(--border2); background: var(--bg3); }
+.role-card.active { border-color: var(--teal); background: rgba(0,229,180,0.06); }
+.role-card.active::before {
+  content:''; position:absolute; left:0; top:0; bottom:0; width:2px; background:var(--teal);
+}
+.role-name { font-size:12px; font-weight:500; color:var(--text); margin-bottom:4px; }
+.role-perms { font-size:10px; color:var(--muted); line-height:1.6; }
+.role-perms .perm {
+  display:inline-flex; align-items:center; gap:4px; margin-right:4px;
+}
+.perm-allow { color:var(--green); }
+.perm-deny  { color:var(--red); }
+
+/* Token display */
+.token-box {
+  background: var(--bg3);
+  border:1px solid var(--border);
+  padding:12px;
+  font-size:10px;
+  color:var(--muted);
+  line-height:1.8;
+  word-break:break-all;
+}
+.token-box .token-key { color:var(--purple); }
+.token-box .token-val { color:var(--teal); }
+.token-box .token-str { color:var(--orange); }
+
+/* ── CENTRE — Gateway & Microservices ── */
+.panel-centre {
+  display:flex; flex-direction:column;
+  overflow:hidden;
+}
+
+/* Architecture diagram */
+.arch-diagram {
+  padding:28px 32px 24px;
+  border-bottom:1px solid var(--border);
+  background: var(--bg);
+  position:relative;
+}
+.arch-title {
+  font-size:9px; letter-spacing:0.2em; text-transform:uppercase;
+  color:var(--muted); margin-bottom:20px;
+}
+.arch-flow {
+  display:flex; align-items:center; gap:0;
+  overflow-x:auto;
+}
+.arch-node {
+  flex-shrink:0;
+  display:flex; flex-direction:column; align-items:center; gap:6px;
+}
+.arch-box {
+  width:100px; height:56px;
+  border:1px solid var(--border2);
+  background: var(--surface);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:4px; transition: all 0.3s; position:relative; cursor:default;
+}
+.arch-box.gateway {
+  width:120px;
+  border-color:rgba(0,229,180,0.5);
+  background: rgba(0,229,180,0.06);
+}
+.arch-box.gateway::after {
+  content:'';
+  position:absolute; inset:-3px;
+  border:1px solid rgba(0,229,180,0.15);
+}
+.arch-box.active-route {
+  border-color:var(--teal) !important;
+  box-shadow: 0 0 20px rgba(0,229,180,0.2);
+}
+.arch-box.error-route {
+  border-color:var(--red) !important;
+  box-shadow: 0 0 20px rgba(255,77,106,0.2);
+}
+.arch-icon { font-size:18px; }
+.arch-label { font-size:9px; color:var(--muted); letter-spacing:0.08em; text-align:center; }
+
+.arch-arrow {
+  flex-shrink:0; width:44px; height:20px;
+  display:flex; align-items:center; position:relative;
+}
+.arch-arrow-line {
+  width:100%; height:1px;
+  background: var(--border2);
+  position:relative; overflow:hidden;
+}
+.arch-arrow-line.active::after {
+  content:'';
+  position:absolute; top:0; left:-60%;
+  width:60%; height:100%;
+  background: linear-gradient(90deg, transparent, var(--teal));
+  animation: shoot 0.6s ease forwards;
+}
+.arch-arrow-line.error::after {
+  background: linear-gradient(90deg, transparent, var(--red));
+  animation: shoot 0.6s ease forwards;
+}
+@keyframes shoot { to { left:100%; } }
+
+.arch-arrow-head {
+  position:absolute; right:-1px;
+  width:0; height:0;
+  border-top:4px solid transparent;
+  border-bottom:4px solid transparent;
+  border-left:6px solid var(--border2);
+}
+.arch-arrow.active .arch-arrow-head { border-left-color: var(--teal); }
+.arch-arrow.error .arch-arrow-head { border-left-color: var(--red); }
+
+.arch-node-label {
+  font-size:9px; color:var(--muted2); letter-spacing:0.08em; text-transform:uppercase;
+}
+.arch-fork {
+  flex-shrink:0; display:flex; flex-direction:column; gap:8px;
+  position:relative;
+}
+.arch-fork::before {
+  content:''; position:absolute; left:-22px; top:28px; bottom:28px; width:1px;
+  background: var(--border2);
+}
+
+/* Request builder */
+.request-builder {
+  padding:24px 32px;
+  border-bottom:1px solid var(--border);
+  background: var(--bg2);
+}
+.builder-grid {
+  display:grid; grid-template-columns:auto 1fr auto; gap:8px; align-items:center;
+}
+.method-select {
+  background: var(--bg3);
+  border:1px solid var(--border2);
+  color:var(--orange);
+  font-family:var(--mono); font-size:12px; font-weight:700;
+  padding:9px 12px;
+  cursor:pointer; outline:none;
+  letter-spacing:0.05em;
+}
+.url-input {
+  background: var(--bg3);
+  border:1px solid var(--border2);
+  color:var(--text);
+  font-family:var(--mono); font-size:12px;
+  padding:9px 14px; outline:none;
+  transition: border-color 0.2s;
+}
+.url-input:focus { border-color:var(--teal); }
+.send-btn {
+  background: var(--teal);
+  border:none; color:var(--bg);
+  font-family:var(--mono); font-size:11px; font-weight:700;
+  padding:9px 20px; cursor:pointer;
+  letter-spacing:0.1em; text-transform:uppercase;
+  transition: all 0.2s; white-space:nowrap;
+}
+.send-btn:hover { background: #00ffca; }
+.send-btn:active { transform: scale(0.97); }
+.send-btn:disabled { background:var(--muted2); cursor:not-allowed; }
+
+.endpoint-chips {
+  display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;
+}
+.chip {
+  font-size:10px; padding:4px 10px;
+  border:1px solid var(--border2);
+  color:var(--muted); cursor:pointer; transition:all 0.15s;
+  white-space:nowrap;
+}
+.chip:hover { border-color:var(--teal); color:var(--teal); }
+.chip .chip-method { color:var(--orange); margin-right:6px; }
+
+/* Response pane */
+.response-pane {
+  flex:1; overflow-y:auto;
+  padding:24px 32px;
+}
+.resp-meta {
+  display:flex; gap:16px; align-items:center; margin-bottom:16px;
+}
+.resp-status {
+  font-size:11px; font-weight:700; padding:3px 10px;
+  border:1px solid;
+}
+.resp-status.s200 { border-color:rgba(57,217,138,0.5); color:var(--green); background:rgba(57,217,138,0.08); }
+.resp-status.s201 { border-color:rgba(57,217,138,0.5); color:var(--green); background:rgba(57,217,138,0.08); }
+.resp-status.s401 { border-color:rgba(255,77,106,0.5); color:var(--red); background:rgba(255,77,106,0.08); }
+.resp-status.s403 { border-color:rgba(255,112,64,0.5); color:var(--orange); background:rgba(255,112,64,0.08); }
+.resp-time { font-size:10px; color:var(--muted); }
+.resp-route { font-size:10px; color:var(--purple); }
+
+.json-view {
+  background: var(--bg3);
+  border:1px solid var(--border);
+  padding:16px; line-height:1.9;
+  overflow-x:auto;
+}
+.j-key  { color:var(--blue); }
+.j-str  { color:var(--orange); }
+.j-num  { color:var(--purple); }
+.j-bool { color:var(--teal); }
+.j-null { color:var(--muted); }
+.j-bracket { color:var(--muted); }
+
+.empty-state {
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  height:200px; gap:12px; color:var(--muted2);
+}
+.empty-icon { font-size:32px; opacity:0.4; }
+.empty-text { font-size:11px; letter-spacing:0.1em; text-transform:uppercase; }
+
+/* ── RIGHT PANEL — Logs & RBAC ── */
+.panel-right {
+  border-left:1px solid var(--border);
+  background: var(--bg2);
+  display:flex; flex-direction:column;
+  overflow:hidden;
+}
+.log-panel {
+  flex:1; overflow-y:auto;
+  padding:16px;
+}
+.log-entry {
+  padding:8px 10px; margin-bottom:6px;
+  border-left:2px solid;
+  background: var(--bg3);
+  font-size:10px; line-height:1.7;
+  animation: slideIn 0.25s ease both;
+}
+@keyframes slideIn {
+  from { opacity:0; transform:translateX(12px); }
+  to   { opacity:1; transform:translateX(0); }
+}
+.log-entry.log-ok   { border-color:var(--green); }
+.log-entry.log-warn { border-color:var(--orange); }
+.log-entry.log-err  { border-color:var(--red); }
+.log-entry.log-info { border-color:var(--blue); }
+.log-time  { color:var(--muted); }
+.log-level-ok   { color:var(--green); font-weight:700; }
+.log-level-warn { color:var(--orange); font-weight:700; }
+.log-level-err  { color:var(--red); font-weight:700; }
+.log-level-info { color:var(--blue); font-weight:700; }
+.log-msg   { color:var(--text); margin-top:2px; }
+
+/* RBAC matrix */
+.rbac-panel {
+  border-top:1px solid var(--border);
+  padding:16px;
+}
+.rbac-table {
+  width:100%; border-collapse:collapse;
+  font-size:9px;
+}
+.rbac-table th {
+  color:var(--muted); font-weight:400; letter-spacing:0.1em;
+  text-transform:uppercase; padding:4px 8px; text-align:center;
+  border-bottom:1px solid var(--border);
+}
+.rbac-table th:first-child { text-align:left; }
+.rbac-table td {
+  padding:5px 8px; text-align:center;
+  border-bottom:1px solid rgba(29,37,56,0.5);
+}
+.rbac-table td:first-child { text-align:left; color:var(--muted); }
+.rbac-allow { color:var(--green); font-size:11px; }
+.rbac-deny  { color:var(--red); font-size:11px; }
+
+/* ── CICD SECTION ── */
+.cicd-section {
+  grid-column: 1/-1;
+  border-top:1px solid var(--border);
+  padding:28px 32px;
+  background: var(--bg);
+}
+.cicd-pipeline {
+  display:flex; gap:0; overflow-x:auto; padding:4px 0;
+}
+.cicd-stage {
+  flex-shrink:0; min-width:140px;
+  border:1px solid var(--border);
+  background: var(--bg2);
+  position:relative;
+}
+.cicd-stage + .cicd-stage { border-left:none; }
+.cicd-stage.running { border-color:rgba(0,229,180,0.4); }
+.cicd-stage.passed  { border-color:rgba(57,217,138,0.4); }
+.cicd-stage.failed  { border-color:rgba(255,77,106,0.4); }
+.cicd-stage-head {
+  padding:8px 12px;
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:8px;
+}
+.cicd-dot {
+  width:7px; height:7px; border-radius:50%;
+  flex-shrink:0;
+}
+.cicd-dot.running { background:var(--teal); box-shadow:0 0 8px var(--teal); animation:blink 1s ease infinite; }
+.cicd-dot.passed  { background:var(--green); }
+.cicd-dot.failed  { background:var(--red); }
+.cicd-dot.pending { background:var(--muted2); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+.cicd-stage-name { font-size:10px; letter-spacing:0.1em; text-transform:uppercase; }
+.cicd-jobs { padding:8px 12px; display:flex; flex-direction:column; gap:5px; }
+.cicd-job {
+  display:flex; align-items:center; gap:8px;
+  font-size:9px; color:var(--muted);
+}
+.cicd-job-dot { width:5px; height:5px; border-radius:50%; flex-shrink:0; }
+
+/* scrollbar */
+::-webkit-scrollbar { width:4px; height:4px; }
+::-webkit-scrollbar-track { background:var(--bg2); }
+::-webkit-scrollbar-thumb { background:var(--border2); }
+
+/* loading pulse */
+.loading-pulse {
+  display:inline-block; width:8px; height:8px;
+  background:var(--teal); border-radius:50%;
+  animation:blink 0.6s ease infinite;
+}
+
+/* copy btn */
+.copy-btn {
+  font-size:9px; padding:2px 8px;
+  border:1px solid var(--border2); color:var(--muted);
+  background:transparent; cursor:pointer; transition:all 0.15s;
+  font-family:var(--mono); letter-spacing:0.08em;
+}
+.copy-btn:hover { border-color:var(--teal); color:var(--teal); }
+
+/* tab bar */
+.tab-bar {
+  display:flex; border-bottom:1px solid var(--border);
+  background: var(--bg2);
+}
+.tab {
+  padding:10px 16px; font-size:10px; letter-spacing:0.1em; text-transform:uppercase;
+  color:var(--muted); cursor:pointer; border-bottom:2px solid transparent;
+  transition:all 0.15s; white-space:nowrap;
+}
+.tab.active { color:var(--teal); border-bottom-color:var(--teal); }
+.tab:hover:not(.active) { color:var(--text); }
+
+.tab-content { display:none; }
+.tab-content.active { display:block; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">OF</div>
+    <div class="logo-text">Ocado<span>Flow</span></div>
+  </div>
+  <div class="header-meta">
+    <span class="badge badge-green">● GATEWAY ONLINE</span>
+    <span class="badge badge-blue">3 SERVICES</span>
+    <span class="version">v1.4.2 · by S.Vainer</span>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- ── LEFT: Auth & Role selector ── -->
+  <div class="panel-left">
+    <div class="panel-section">
+      <div class="panel-title">OAuth2 Identity</div>
+      <div id="roleCards">
+        <div class="role-card active" data-role="admin" onclick="selectRole(this)">
+          <div class="role-name">🔑 admin@ocado.com</div>
+          <div class="role-perms">
+            <span class="perm perm-allow">✓ products:read</span>
+            <span class="perm perm-allow">✓ products:write</span>
+            <span class="perm perm-allow">✓ orders:read</span>
+            <span class="perm perm-allow">✓ orders:write</span>
+            <span class="perm perm-allow">✓ iam:manage</span>
+          </div>
+        </div>
+        <div class="role-card" data-role="ops" onclick="selectRole(this)">
+          <div class="role-name">🛠 ops@ocado.com</div>
+          <div class="role-perms">
+            <span class="perm perm-allow">✓ products:read</span>
+            <span class="perm perm-deny">✗ products:write</span>
+            <span class="perm perm-allow">✓ orders:read</span>
+            <span class="perm perm-allow">✓ orders:write</span>
+            <span class="perm perm-deny">✗ iam:manage</span>
+          </div>
+        </div>
+        <div class="role-card" data-role="readonly" onclick="selectRole(this)">
+          <div class="role-name">👁 viewer@ocado.com</div>
+          <div class="role-perms">
+            <span class="perm perm-allow">✓ products:read</span>
+            <span class="perm perm-deny">✗ products:write</span>
+            <span class="perm perm-allow">✓ orders:read</span>
+            <span class="perm perm-deny">✗ orders:write</span>
+            <span class="perm perm-deny">✗ iam:manage</span>
+          </div>
+        </div>
+        <div class="role-card" data-role="unauth" onclick="selectRole(this)">
+          <div class="role-name">🚫 anonymous</div>
+          <div class="role-perms">
+            <span class="perm perm-deny">✗ No token</span>
+            <span class="perm perm-deny">✗ All denied</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-title">JWT Token</div>
+      <div class="token-box" id="tokenDisplay">
+        <div><span class="token-key">alg</span>: <span class="token-str">"RS256"</span></div>
+        <div><span class="token-key">typ</span>: <span class="token-str">"JWT"</span></div>
+        <div>—</div>
+        <div><span class="token-key">sub</span>: <span class="token-str">"admin@ocado.com"</span></div>
+        <div><span class="token-key">role</span>: <span class="token-str">"admin"</span></div>
+        <div><span class="token-key">scope</span>: <span class="token-val">["products:rw","orders:rw","iam"]</span></div>
+        <div><span class="token-key">exp</span>: <span class="token-val">3600</span></div>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-title">Gateway Config</div>
+      <div style="font-size:10px; line-height:2; color:var(--muted);">
+        <div><span style="color:var(--blue)">host</span>: api.ocadoflow.io</div>
+        <div><span style="color:var(--blue)">port</span>: <span style="color:var(--purple)">8080</span></div>
+        <div><span style="color:var(--blue)">tls</span>: <span style="color:var(--teal)">true</span></div>
+        <div><span style="color:var(--blue)">oauth2</span>: <span style="color:var(--teal)">enabled</span></div>
+        <div><span style="color:var(--blue)">rate_limit</span>: <span style="color:var(--purple)">500</span>/min</div>
+        <div><span style="color:var(--blue)">timeout</span>: <span style="color:var(--purple)">30</span>s</div>
+        <div><span style="color:var(--blue)">retry</span>: <span style="color:var(--purple)">3</span>x exponential</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CENTRE: Request + Response ── -->
+  <div class="panel-centre">
+
+    <!-- Architecture Diagram -->
+    <div class="arch-diagram">
+      <div class="arch-title">Request Flow Architecture</div>
+      <div class="arch-flow" id="archFlow">
+        <div class="arch-node">
+          <div class="arch-box" id="node-client">
+            <div class="arch-icon">💻</div>
+            <div class="arch-label">Client</div>
+          </div>
+          <div class="arch-node-label">request</div>
+        </div>
+        <div class="arch-arrow" id="arrow-1">
+          <div class="arch-arrow-line"></div>
+          <div class="arch-arrow-head"></div>
+        </div>
+        <div class="arch-node">
+          <div class="arch-box gateway" id="node-gateway">
+            <div class="arch-icon">🌐</div>
+            <div class="arch-label">API Gateway</div>
+          </div>
+          <div class="arch-node-label">auth + route</div>
+        </div>
+        <div class="arch-arrow" id="arrow-2">
+          <div class="arch-arrow-line"></div>
+          <div class="arch-arrow-head"></div>
+        </div>
+        <div class="arch-fork" id="archFork">
+          <div class="arch-node" style="flex-direction:row;align-items:center;gap:8px;">
+            <div class="arch-box" id="node-products" style="width:88px;height:48px;">
+              <div class="arch-icon" style="font-size:14px;">🛒</div>
+              <div class="arch-label" style="font-size:8px;">Products</div>
+            </div>
+          </div>
+          <div class="arch-node" style="flex-direction:row;align-items:center;gap:8px;">
+            <div class="arch-box" id="node-orders" style="width:88px;height:48px;">
+              <div class="arch-icon" style="font-size:14px;">📦</div>
+              <div class="arch-label" style="font-size:8px;">Orders</div>
+            </div>
+          </div>
+          <div class="arch-node" style="flex-direction:row;align-items:center;gap:8px;">
+            <div class="arch-box" id="node-iam" style="width:88px;height:48px;">
+              <div class="arch-icon" style="font-size:14px;">🔐</div>
+              <div class="arch-label" style="font-size:8px;">IAM</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Request Builder -->
+    <div class="request-builder">
+      <div class="panel-title" style="margin-bottom:12px;">Request Builder</div>
+      <div class="builder-grid">
+        <select class="method-select" id="methodSelect">
+          <option>GET</option>
+          <option>POST</option>
+          <option>PUT</option>
+          <option>DELETE</option>
+        </select>
+        <input class="url-input" id="urlInput" value="/api/v1/products" placeholder="/api/v1/...">
+        <button class="send-btn" id="sendBtn" onclick="sendRequest()">▶ SEND</button>
+      </div>
+      <div class="endpoint-chips">
+        <div class="chip" onclick="setEndpoint('GET','/api/v1/products')"><span class="chip-method">GET</span>/products</div>
+        <div class="chip" onclick="setEndpoint('GET','/api/v1/products/42')"><span class="chip-method">GET</span>/products/42</div>
+        <div class="chip" onclick="setEndpoint('POST','/api/v1/products')"><span class="chip-method">POST</span>/products</div>
+        <div class="chip" onclick="setEndpoint('GET','/api/v1/orders')"><span class="chip-method">GET</span>/orders</div>
+        <div class="chip" onclick="setEndpoint('POST','/api/v1/orders')"><span class="chip-method">POST</span>/orders</div>
+        <div class="chip" onclick="setEndpoint('GET','/api/v1/iam/users')"><span class="chip-method">GET</span>/iam/users</div>
+        <div class="chip" onclick="setEndpoint('POST','/api/v1/iam/roles')"><span class="chip-method">POST</span>/iam/roles</div>
+      </div>
+    </div>
+
+    <!-- Response -->
+    <div class="response-pane" id="responsePane">
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">⚡</div>
+        <div class="empty-text">Select a role, choose an endpoint, and fire a request</div>
+      </div>
+      <div id="responseContent" style="display:none;">
+        <div class="resp-meta">
+          <div class="resp-status" id="respStatus"></div>
+          <div class="resp-time" id="respTime"></div>
+          <div class="resp-route" id="respRoute"></div>
+        </div>
+        <div class="json-view" id="jsonView"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RIGHT: Logs + RBAC Matrix ── -->
+  <div class="panel-right">
+    <div class="tab-bar">
+      <div class="tab active" onclick="switchTab('logs',this)">Access Logs</div>
+      <div class="tab" onclick="switchTab('rbac',this)">RBAC Matrix</div>
+    </div>
+
+    <div class="tab-content active" id="tab-logs">
+      <div class="log-panel" id="logPanel">
+        <div class="log-entry log-info">
+          <span class="log-time">00:00:00</span> <span class="log-level-info">INFO</span>
+          <div class="log-msg">OcadoFlow Gateway initialised — 3 services registered</div>
+        </div>
+        <div class="log-entry log-ok">
+          <span class="log-time">00:00:01</span> <span class="log-level-ok">OK</span>
+          <div class="log-msg">OAuth2 provider connected · JWKS endpoint verified</div>
+        </div>
+        <div class="log-entry log-ok">
+          <span class="log-time">00:00:02</span> <span class="log-level-ok">OK</span>
+          <div class="log-msg">RBAC policy engine loaded · 4 roles · 12 permissions</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-rbac">
+      <div class="rbac-panel">
+        <div class="panel-title" style="margin-bottom:12px;">Permission Matrix</div>
+        <table class="rbac-table">
+          <thead>
+            <tr>
+              <th>Scope</th>
+              <th>admin</th>
+              <th>ops</th>
+              <th>viewer</th>
+              <th>anon</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>products:read</td>  <td class="rbac-allow">✓</td><td class="rbac-allow">✓</td><td class="rbac-allow">✓</td><td class="rbac-deny">✗</td></tr>
+            <tr><td>products:write</td> <td class="rbac-allow">✓</td><td class="rbac-deny">✗</td> <td class="rbac-deny">✗</td> <td class="rbac-deny">✗</td></tr>
+            <tr><td>orders:read</td>    <td class="rbac-allow">✓</td><td class="rbac-allow">✓</td><td class="rbac-allow">✓</td><td class="rbac-deny">✗</td></tr>
+            <tr><td>orders:write</td>   <td class="rbac-allow">✓</td><td class="rbac-allow">✓</td><td class="rbac-deny">✗</td> <td class="rbac-deny">✗</td></tr>
+            <tr><td>iam:read</td>       <td class="rbac-allow">✓</td><td class="rbac-deny">✗</td> <td class="rbac-deny">✗</td> <td class="rbac-deny">✗</td></tr>
+            <tr><td>iam:manage</td>     <td class="rbac-allow">✓</td><td class="rbac-deny">✗</td> <td class="rbac-deny">✗</td> <td class="rbac-deny">✗</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- CI/CD mini strip -->
+    <div style="border-top:1px solid var(--border); padding:12px 16px;">
+      <div class="panel-title" style="margin-bottom:10px;">Pipeline Status</div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        <div style="font-size:9px; padding:3px 8px; border:1px solid rgba(57,217,138,0.4); color:var(--green); background:rgba(57,217,138,0.06);">✓ build</div>
+        <div style="font-size:9px; padding:3px 8px; border:1px solid rgba(57,217,138,0.4); color:var(--green); background:rgba(57,217,138,0.06);">✓ test</div>
+        <div style="font-size:9px; padding:3px 8px; border:1px solid rgba(57,217,138,0.4); color:var(--green); background:rgba(57,217,138,0.06);">✓ scan</div>
+        <div style="font-size:9px; padding:3px 8px; border:1px solid rgba(0,229,180,0.5); color:var(--teal); background:rgba(0,229,180,0.06);">⟳ deploy</div>
+      </div>
+      <div style="font-size:9px; color:var(--muted); margin-top:8px;">commit: a3f7c2b · main · 14s ago</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── State ──
+let currentRole = 'admin';
+let reqCount = 0;
+
+const roles = {
+  admin:    { email:'admin@ocado.com',   scopes:['products:read','products:write','orders:read','orders:write','iam:read','iam:manage'] },
+  ops:      { email:'ops@ocado.com',     scopes:['products:read','orders:read','orders:write'] },
+  readonly: { email:'viewer@ocado.com',  scopes:['products:read','orders:read'] },
+  unauth:   { email:'anonymous',         scopes:[] }
+};
+
+const tokenData = {
+  admin:    { sub:'admin@ocado.com',   role:'admin',   scope:['products:rw','orders:rw','iam'] },
+  ops:      { sub:'ops@ocado.com',     role:'ops',     scope:['products:r','orders:rw'] },
+  readonly: { sub:'viewer@ocado.com',  role:'viewer',  scope:['products:r','orders:r'] },
+  unauth:   { sub:null, role:null, scope:[] }
+};
+
+// ── Mock API responses ──
+const apiResponses = {
+  'GET /api/v1/products': {
+    scope:'products:read',
+    service:'products-service:8081',
+    handler: () => ({
+      data: [
+        { id:1, name:"Organic Whole Milk 2L", category:"dairy", price:1.89, stock:142, sku:"ORG-MLK-2L" },
+        { id:2, name:"M&S Sourdough Loaf", category:"bakery", price:2.50, stock:67, sku:"MS-SDGH-L" },
+        { id:3, name:"Free Range Eggs 12pk", category:"eggs", price:3.20, stock:89, sku:"FRE-EGG-12" }
+      ],
+      meta: { total:247, page:1, per_page:3, service_version:"2.1.4" }
+    })
+  },
+  'GET /api/v1/products/42': {
+    scope:'products:read',
+    service:'products-service:8081',
+    handler: () => ({
+      data: { id:42, name:"Avocado Hass x4", category:"produce", price:1.65, stock:34, sku:"AVO-H-4", origin:"Peru", organic:true },
+      meta: { service_version:"2.1.4" }
+    })
+  },
+  'POST /api/v1/products': {
+    scope:'products:write',
+    service:'products-service:8081',
+    handler: () => ({
+      data: { id:248, name:"New Product", created:true, sku:"NWP-001" },
+      meta: { action:"created", service_version:"2.1.4" }
+    }),
+    status: 201
+  },
+  'GET /api/v1/orders': {
+    scope:'orders:read',
+    service:'orders-service:8082',
+    handler: () => ({
+      data: [
+        { id:"ORD-7842", customer:"john.doe@email.com", status:"dispatched", items:6, total:34.72, eta:"2026-03-03T14:30:00Z" },
+        { id:"ORD-7841", customer:"jane.smith@email.com", status:"picking", items:12, total:67.50, eta:"2026-03-03T16:00:00Z" }
+      ],
+      meta: { total:1247, active:89, service_version:"1.8.2" }
+    })
+  },
+  'POST /api/v1/orders': {
+    scope:'orders:write',
+    service:'orders-service:8082',
+    handler: () => ({
+      data: { id:"ORD-7843", status:"accepted", estimated_pick_time:"25min" },
+      meta: { action:"created", service_version:"1.8.2" }
+    }),
+    status: 201
+  },
+  'GET /api/v1/iam/users': {
+    scope:'iam:read',
+    service:'iam-service:8083',
+    handler: () => ({
+      data: [
+        { id:"u-001", email:"admin@ocado.com",  role:"admin",  status:"active", last_login:"2026-03-03T09:12:00Z" },
+        { id:"u-002", email:"ops@ocado.com",    role:"ops",    status:"active", last_login:"2026-03-03T08:45:00Z" },
+        { id:"u-003", email:"viewer@ocado.com", role:"viewer", status:"active", last_login:"2026-03-02T17:20:00Z" }
+      ],
+      meta: { total:3, service_version:"3.0.1" }
+    })
+  },
+  'POST /api/v1/iam/roles': {
+    scope:'iam:manage',
+    service:'iam-service:8083',
+    handler: () => ({
+      data: { role_id:"role-009", name:"warehouse_ops", permissions:["orders:read","products:read"], created:true },
+      meta: { action:"created", service_version:"3.0.1" }
+    }),
+    status: 201
+  }
+};
+
+// ── Role select ──
+function selectRole(el) {
+  document.querySelectorAll('.role-card').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  currentRole = el.dataset.role;
+  updateTokenDisplay();
+  addLog('info', `Identity switched → ${roles[currentRole].email}`);
+}
+
+function updateTokenDisplay() {
+  const t = tokenData[currentRole];
+  const d = document.getElementById('tokenDisplay');
+  if (currentRole === 'unauth') {
+    d.innerHTML = `<div style="color:var(--red)">No token present</div><div style="color:var(--muted)">Authorization: Bearer &lt;missing&gt;</div>`;
+    return;
+  }
+  d.innerHTML = `
+    <div><span class="token-key">alg</span>: <span class="token-str">"RS256"</span></div>
+    <div><span class="token-key">typ</span>: <span class="token-str">"JWT"</span></div>
+    <div style="color:var(--muted)">—</div>
+    <div><span class="token-key">sub</span>: <span class="token-str">"${t.sub}"</span></div>
+    <div><span class="token-key">role</span>: <span class="token-str">"${t.role}"</span></div>
+    <div><span class="token-key">scope</span>: <span class="token-val">[${t.scope.map(s=>`"${s}"`).join(', ')}]</span></div>
+    <div><span class="token-key">exp</span>: <span class="token-val">3600</span></div>
+    <div><span class="token-key">iss</span>: <span class="token-str">"auth.ocadoflow.io"</span></div>
+  `;
+}
+
+function setEndpoint(method, url) {
+  document.getElementById('methodSelect').value = method;
+  document.getElementById('urlInput').value = url;
+}
+
+// ── Send Request ──
+async function sendRequest() {
+  const method = document.getElementById('methodSelect').value;
+  const url = document.getElementById('urlInput').value.trim();
+  const key = `${method} ${url}`;
+  const btn = document.getElementById('sendBtn');
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading-pulse"></span> SENDING';
+
+  // Animate arrows
+  resetArrows();
+  await sleep(200);
+  animateArrow('arrow-1', true, false);
+  await sleep(350);
+  animateArrow('arrow-2', true, false);
+
+  await sleep(400 + Math.random()*300);
+
+  const route = apiResponses[key];
+  const userScopes = roles[currentRole].scopes;
+  const ms = Math.round(40 + Math.random()*120);
+  const ts = new Date().toLocaleTimeString('en-GB', {hour12:false});
+
+  // Unauth check
+  if (currentRole === 'unauth') {
+    showResponse(401, ms, 'gateway → rejected', { error:'Unauthorized', message:'Missing or invalid Bearer token', code:'ERR_NO_TOKEN' });
+    addLog('err', `[${ts}] 401 UNAUTHORIZED — ${method} ${url} — No bearer token`);
+    highlightNode('node-gateway', 'error-route');
+    btn.disabled = false; btn.innerHTML = '▶ SEND'; return;
+  }
+
+  // Unknown route
+  if (!route) {
+    showResponse(404, ms, 'gateway → unmatched', { error:'Not Found', message:`Route ${method} ${url} not registered in gateway`, code:'ERR_ROUTE_NOT_FOUND' });
+    addLog('warn', `[${ts}] 404 NOT FOUND — ${method} ${url} — No matching route`);
+    btn.disabled = false; btn.innerHTML = '▶ SEND'; return;
+  }
+
+  // RBAC check
+  if (!userScopes.includes(route.scope)) {
+    showResponse(403, ms, `gateway → ${route.service} (rejected)`, {
+      error:'Forbidden',
+      message:`Role '${currentRole}' lacks required scope: '${route.scope}'`,
+      required_scope: route.scope,
+      your_scopes: userScopes,
+      code:'ERR_INSUFFICIENT_SCOPE'
+    });
+    addLog('warn', `[${ts}] 403 FORBIDDEN — ${method} ${url} — role='${currentRole}' missing scope='${route.scope}'`);
+    highlightNode('node-gateway', 'error-route');
+    btn.disabled = false; btn.innerHTML = '▶ SEND'; return;
+  }
+
+  // Success
+  const body = route.handler();
+  const status = route.status || 200;
+  body.meta = { ...body.meta, gateway_ms: ms, request_id: `req-${++reqCount}-${Math.random().toString(36).slice(2,7)}`, role: currentRole };
+
+  // Highlight correct service node
+  const svcMap = { 'products-service:8081':'node-products', 'orders-service:8082':'node-orders', 'iam-service:8083':'node-iam' };
+  highlightNode(svcMap[route.service], 'active-route');
+
+  showResponse(status, ms, `gateway → ${route.service}`, body);
+  addLog('ok', `[${ts}] ${status} ${status===201?'CREATED':'OK'} — ${method} ${url} — ${ms}ms — role='${currentRole}' scope='${route.scope}'`);
+
+  btn.disabled = false; btn.innerHTML = '▶ SEND';
+}
+
+function showResponse(status, ms, route, body) {
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('responseContent').style.display = 'block';
+
+  const el = document.getElementById('respStatus');
+  el.textContent = `${status} ${statusText(status)}`;
+  el.className = `resp-status s${status}`;
+
+  document.getElementById('respTime').textContent = `${ms}ms`;
+  document.getElementById('respRoute').textContent = route;
+  document.getElementById('jsonView').innerHTML = syntaxHighlight(JSON.stringify(body, null, 2));
+}
+
+function statusText(s) { return {200:'OK',201:'Created',401:'Unauthorized',403:'Forbidden',404:'Not Found'}[s]||''; }
+
+function syntaxHighlight(json) {
+  return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, m => {
+    if (/^"/.test(m)) {
+      if (/:$/.test(m)) return `<span class="j-key">${m}</span>`;
+      return `<span class="j-str">${m}</span>`;
+    }
+    if (/true|false/.test(m)) return `<span class="j-bool">${m}</span>`;
+    if (/null/.test(m)) return `<span class="j-null">${m}</span>`;
+    return `<span class="j-num">${m}</span>`;
+  });
+}
+
+function addLog(level, msg) {
+  const panel = document.getElementById('logPanel');
+  const lvlMap = { ok:'log-ok', warn:'log-warn', err:'log-err', info:'log-info' };
+  const lvlLabel = { ok:'<span class="log-level-ok">OK</span>', warn:'<span class="log-level-warn">WARN</span>', err:'<span class="log-level-err">ERR</span>', info:'<span class="log-level-info">INFO</span>' };
+  const div = document.createElement('div');
+  div.className = `log-entry ${lvlMap[level]}`;
+  div.innerHTML = `${lvlLabel[level]} <div class="log-msg">${msg}</div>`;
+  panel.appendChild(div);
+  panel.scrollTop = panel.scrollHeight;
+}
+
+function animateArrow(id, active, error) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const line = el.querySelector('.arch-arrow-line');
+  el.classList.toggle('active', active && !error);
+  el.classList.toggle('error', error);
+  line.classList.toggle('active', active && !error);
+  line.classList.toggle('error', error);
+}
+
+function resetArrows() {
+  ['arrow-1','arrow-2'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('active','error');
+    const line = el.querySelector('.arch-arrow-line');
+    line.classList.remove('active','error');
+  });
+  ['node-gateway','node-products','node-orders','node-iam'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('active-route','error-route');
+  });
+}
+
+function highlightNode(id, cls) {
+  const el = document.getElementById(id);
+  if (el) el.classList.add(cls);
+}
+
+function switchTab(name, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+</script>
+</body>
+</html>
