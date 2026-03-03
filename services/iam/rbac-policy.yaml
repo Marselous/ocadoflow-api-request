@@ -1,0 +1,8 @@
+version: "1.0"
+roles:
+  admin:
+    permissions: [products:read, products:write, orders:read, orders:write, iam:read, iam:manage]
+  ops:
+    permissions: [products:read, orders:read, orders:write]
+  viewer:
+    permissions: [products:read, orders:read]
