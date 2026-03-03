@@ -1,0 +1,315 @@
+# ============================================================
+#  OcadoFlow — GitLab CI/CD Pipeline
+#  Author : Stanislav Vainer
+#  Stages : build → test → scan → package → deploy → verify
+# ============================================================
+
+variables:
+  APP_NAME:         "ocadoflow"
+  AWS_REGION:       "eu-west-1"
+  ECR_REGISTRY:     "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+  SERVICES:         "products orders iam"
+  TERRAFORM_VER:    "1.6.0"
+  DOCKER_BUILDKIT:  "1"
+  # Injected via CI/CD vars (masked):
+  # AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_ACCOUNT_ID
+
+stages:
+  - build
+  - test
+  - security
+  - package
+  - deploy:staging
+  - verify:staging
+  - deploy:production
+  - notify
+
+# ── Shared config ──────────────────────────────────────────
+.aws_login: &aws_login
+  - aws ecr get-login-password --region $AWS_REGION |
+    docker login --username AWS --password-stdin $ECR_REGISTRY
+
+.service_matrix: &service_matrix
+  parallel:
+    matrix:
+      - SERVICE: [products, orders, iam]
+
+# ── BUILD ──────────────────────────────────────────────────
+build:compile:
+  stage: build
+  image: maven:3.9-eclipse-temurin-21
+  <<: *service_matrix
+  script:
+    - cd services/$SERVICE
+    - mvn clean package -DskipTests -q
+    - echo "BUILD_SHA=${CI_COMMIT_SHORT_SHA}" >> build.env
+  artifacts:
+    paths:
+      - services/$SERVICE/target/*.jar
+    reports:
+      dotenv: services/$SERVICE/build.env
+    expire_in: 1 hour
+  cache:
+    key: "$CI_COMMIT_REF_SLUG-$SERVICE"
+    paths:
+      - services/$SERVICE/.m2/repository
+
+# ── TEST ───────────────────────────────────────────────────
+test:unit:
+  stage: test
+  image: maven:3.9-eclipse-temurin-21
+  <<: *service_matrix
+  script:
+    - cd services/$SERVICE
+    - mvn test -q
+  artifacts:
+    reports:
+      junit: services/$SERVICE/target/surefire-reports/TEST-*.xml
+    when: always
+
+test:integration:
+  stage: test
+  image: docker:24
+  services:
+    - docker:24-dind
+  <<: *service_matrix
+  script:
+    - cd services/$SERVICE
+    - docker compose -f docker-compose.test.yml up --exit-code-from tests
+    - docker compose -f docker-compose.test.yml down -v
+  artifacts:
+    reports:
+      junit: services/$SERVICE/target/failsafe-reports/TEST-*.xml
+
+test:rbac-policy:
+  stage: test
+  image: python:3.12-slim
+  script:
+    - pip install -q pytest pyyaml
+    - pytest tests/rbac/ -v --tb=short
+    - echo "RBAC matrix: $(cat iam/rbac-policy.yaml | grep 'allow' | wc -l) allow rules verified"
+  artifacts:
+    reports:
+      junit: tests/rbac/junit.xml
+
+# ── SECURITY ───────────────────────────────────────────────
+security:sast:
+  stage: security
+  image: returntocorp/semgrep:latest
+  script:
+    - semgrep --config=auto --json --output=gl-sast-report.json services/
+    - semgrep --config=auto --error services/
+  artifacts:
+    reports:
+      sast: gl-sast-report.json
+  allow_failure: false
+
+security:dependency-scan:
+  stage: security
+  image: maven:3.9-eclipse-temurin-21
+  <<: *service_matrix
+  script:
+    - cd services/$SERVICE
+    - mvn org.owasp:dependency-check-maven:check -q
+    - |
+      SCORE=$(cat target/dependency-check-report.json | python3 -c "
+      import json,sys; r=json.load(sys.stdin)
+      scores=[v['cvssv3']['baseScore'] for d in r.get('dependencies',[]) for v in d.get('vulnerabilities',[])]
+      print(max(scores) if scores else 0)")
+      echo "Max CVSS score: $SCORE"
+      [ $(echo "$SCORE < 7.0" | bc -l) -eq 1 ] || (echo "HIGH severity CVE found!" && exit 1)
+  artifacts:
+    paths:
+      - services/$SERVICE/target/dependency-check-report.*
+    when: always
+
+security:terraform:
+  stage: security
+  image: aquasec/tfsec:latest
+  script:
+    - tfsec infra/terraform/ --format json --out tfsec-report.json
+    - tfsec infra/terraform/ --minimum-severity HIGH
+  artifacts:
+    paths:
+      - tfsec-report.json
+    when: always
+
+security:secrets-scan:
+  stage: security
+  image: trufflesecurity/trufflehog:latest
+  script:
+    - trufflehog filesystem . --only-verified --fail
+  allow_failure: false
+
+# ── PACKAGE ────────────────────────────────────────────────
+package:docker:
+  stage: package
+  image: docker:24
+  services:
+    - docker:24-dind
+  <<: *service_matrix
+  before_script:
+    - *aws_login
+  script:
+    - IMAGE_TAG="${ECR_REGISTRY}/${APP_NAME}/${SERVICE}:${CI_COMMIT_SHORT_SHA}"
+    - IMAGE_LATEST="${ECR_REGISTRY}/${APP_NAME}/${SERVICE}:latest"
+    - docker build
+        --build-arg BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+        --build-arg VCS_REF=${CI_COMMIT_SHA}
+        --build-arg VERSION=${CI_COMMIT_SHORT_SHA}
+        -t $IMAGE_TAG
+        -t $IMAGE_LATEST
+        services/$SERVICE/
+    - docker push $IMAGE_TAG
+    - docker push $IMAGE_LATEST
+    - echo "IMAGE_TAG=${IMAGE_TAG}" >> package.env
+  artifacts:
+    reports:
+      dotenv: package.env
+
+package:container-scan:
+  stage: package
+  image: aquasec/trivy:latest
+  <<: *service_matrix
+  needs: ["package:docker"]
+  before_script:
+    - *aws_login
+  script:
+    - IMAGE="${ECR_REGISTRY}/${APP_NAME}/${SERVICE}:${CI_COMMIT_SHORT_SHA}"
+    - trivy image --exit-code 1 --severity HIGH,CRITICAL --no-progress $IMAGE
+  artifacts:
+    reports:
+      container_scanning: gl-container-scanning-report.json
+
+# ── DEPLOY STAGING ─────────────────────────────────────────
+deploy:staging:
+  stage: deploy:staging
+  image: hashicorp/terraform:${TERRAFORM_VER}
+  environment:
+    name: staging
+    url: https://staging.api.ocadoflow.io
+  variables:
+    TF_VAR_environment: "staging"
+    TF_VAR_desired_count: "1"
+  script:
+    - cd infra/terraform
+    - terraform init -backend-config="key=staging/terraform.tfstate" -reconfigure
+    - terraform plan -out=staging.plan -compact-warnings
+    - terraform apply -auto-approve staging.plan
+    - |
+      for SERVICE in $SERVICES; do
+        aws ecs update-service \
+          --cluster ${APP_NAME}-cluster \
+          --service ${APP_NAME}-${SERVICE} \
+          --force-new-deployment \
+          --region $AWS_REGION
+      done
+    - aws ecs wait services-stable
+        --cluster ${APP_NAME}-cluster
+        --services $(echo $SERVICES | tr ' ' '\n' | sed "s/^/${APP_NAME}-/" | tr '\n' ' ')
+        --region $AWS_REGION
+  only:
+    - main
+    - /^release\/.*/
+
+# ── VERIFY STAGING ─────────────────────────────────────────
+verify:smoke-tests:
+  stage: verify:staging
+  image: python:3.12-slim
+  environment:
+    name: staging
+  script:
+    - pip install -q requests pytest
+    - pytest tests/smoke/ -v
+        --base-url=https://staging.api.ocadoflow.io
+        --tb=short
+    - echo "All smoke tests passed ✓"
+  only:
+    - main
+    - /^release\/.*/
+
+verify:rbac-live:
+  stage: verify:staging
+  image: python:3.12-slim
+  script:
+    - pip install -q requests
+    - python3 tests/rbac/live_check.py --env staging
+  only:
+    - main
+
+# ── DEPLOY PRODUCTION ──────────────────────────────────────
+deploy:production:
+  stage: deploy:production
+  image: hashicorp/terraform:${TERRAFORM_VER}
+  environment:
+    name: production
+    url: https://api.ocadoflow.io
+  variables:
+    TF_VAR_environment: "production"
+  script:
+    - cd infra/terraform
+    - terraform init -backend-config="key=production/terraform.tfstate" -reconfigure
+    - terraform plan -out=prod.plan -compact-warnings
+    - terraform apply -auto-approve prod.plan
+    - |
+      for SERVICE in $SERVICES; do
+        aws ecs update-service \
+          --cluster ${APP_NAME}-cluster \
+          --service ${APP_NAME}-${SERVICE} \
+          --force-new-deployment \
+          --region $AWS_REGION
+      done
+    - aws ecs wait services-stable
+        --cluster ${APP_NAME}-cluster
+        --services $(echo $SERVICES | tr ' ' '\n' | sed "s/^/${APP_NAME}-/" | tr '\n' ' ')
+  when: manual               # ← human approval gate
+  only:
+    - /^release\/.*/
+  needs:
+    - verify:smoke-tests
+    - verify:rbac-live
+
+# ── ROLLBACK ───────────────────────────────────────────────
+rollback:production:
+  stage: deploy:production
+  image: amazon/aws-cli:latest
+  environment:
+    name: production
+  script:
+    - PREV_SHA=$(git log --format="%H" -n 2 | tail -1 | cut -c1-8)
+    - echo "Rolling back to ${PREV_SHA}..."
+    - |
+      for SERVICE in $SERVICES; do
+        aws ecs update-service \
+          --cluster ${APP_NAME}-cluster \
+          --service ${APP_NAME}-${SERVICE} \
+          --task-definition "${APP_NAME}-${SERVICE}:$(
+            aws ecs describe-task-definition \
+              --task-definition ${APP_NAME}-${SERVICE} \
+              --query 'taskDefinition.revision' --output text
+          )" \
+          --force-new-deployment
+      done
+  when: manual
+  only:
+    - /^release\/.*/
+
+# ── NOTIFY ─────────────────────────────────────────────────
+notify:slack:
+  stage: notify
+  image: curlimages/curl:latest
+  script:
+    - |
+      STATUS="${CI_JOB_STATUS}"
+      COLOR=$([[ "$STATUS" == "success" ]] && echo "#39d98a" || echo "#ff4d6a")
+      ICON=$([[ "$STATUS" == "success" ]] && echo "✅" || echo "❌")
+      curl -s -X POST $SLACK_WEBHOOK_URL \
+        -H 'Content-type: application/json' \
+        -d "{\"attachments\":[{
+          \"color\":\"${COLOR}\",
+          \"text\":\"${ICON} OcadoFlow pipeline ${STATUS} · \`${CI_COMMIT_SHORT_SHA}\` → ${CI_ENVIRONMENT_NAME}\n*Branch:* ${CI_COMMIT_REF_NAME} · *Author:* ${GITLAB_USER_NAME}\"
+        }]}"
+  when: always
+  only:
+    - main
+    - /^release\/.*/
