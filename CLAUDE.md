@@ -104,6 +104,7 @@ open demo/ocadoflow-app.html
 | Date | Branch | What was done |
 |------|--------|---------------|
 | 2026-03-16 | `feature/cl-init` | Created CLAUDE.md — baseline context, conventions, ADRs |
+| 2026-03-16 | `demo/ocado-test` | Built `demo/ocado-engineer-flows.html` — 7-tab interactive demo (Daily Duties, CI/CD, Security, API Gateway, Terraform, Access Management, Incident Response) aligned to Ocado VN1230 role |
 
 > Update this table at the end of every session with a one-line summary of what changed.
 

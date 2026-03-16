@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OcadoFlow — Engineer Flows Demo</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<!-- DOMPurify: sanitise all dynamic HTML to prevent XSS -->
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<style>
+:root {
+  --bg:#07090d; --bg2:#0c0f16; --bg3:#111520;
+  --surface:#161c2a; --border:#1d2538; --border2:#253045;
+  --teal:#00e5b4; --orange:#ff7040; --blue:#3d9bff;
+  --purple:#9b6dff; --yellow:#ffc940; --red:#ff4d6a; --green:#39d98a;
+  --text:#dce6f5; --muted:#5a6a88; --muted2:#3a4a68;
+  --mono:'JetBrains Mono',monospace; --display:'Syne',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13px;min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,229,180,0.012) 2px,rgba(0,229,180,0.012) 4px);pointer-events:none;z-index:999;}
+body::after{content:'';position:fixed;top:0;left:20%;right:20%;height:1px;background:linear-gradient(90deg,transparent,var(--teal),transparent);box-shadow:0 0 60px 4px rgba(0,229,180,0.25);z-index:100;}
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:var(--bg2);}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+header{position:sticky;top:0;z-index:90;display:flex;align-items:center;justify-content:space-between;padding:14px 32px;background:rgba(7,9,13,0.92);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);}
+.logo{display:flex;align-items:center;gap:12px;}
+.logo-mark{width:32px;height:32px;border:1px solid var(--teal);display:grid;place-items:center;font-size:14px;font-weight:700;color:var(--teal);position:relative;}
+.logo-mark::before{content:'';position:absolute;inset:-4px;border:1px solid rgba(0,229,180,0.2);}
+.logo-text{font-family:var(--display);font-size:18px;font-weight:800;color:var(--text);}
+.logo-text span{color:var(--teal);}
+.header-meta{display:flex;align-items:center;gap:12px;}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--border2);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
+.badge-green{border-color:rgba(57,217,138,0.3);color:var(--green);}
+.badge-blue{border-color:rgba(61,155,255,0.3);color:var(--blue);}
+.version{font-size:10px;color:var(--muted);letter-spacing:.05em;}
+.flow-nav{position:sticky;top:57px;z-index:80;display:flex;background:rgba(7,9,13,0.95);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:0 32px;overflow-x:auto;}
+.flow-btn{background:none;border:none;border-bottom:2px solid transparent;padding:12px 18px;font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);cursor:pointer;white-space:nowrap;transition:color .2s,border-color .2s;}
+.flow-btn:hover{color:var(--text);}
+.flow-btn.active{color:var(--teal);border-bottom-color:var(--teal);}
+.flow-main{padding:0;}
+.flow-section{display:none;min-height:calc(100vh - 110px);}
+.flow-section.active{display:grid;}
+.panel-title{font-family:var(--display);font-size:11px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.step-node{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border:1px solid var(--border);border-left:3px solid transparent;cursor:pointer;transition:all .2s;margin-bottom:6px;background:var(--bg3);}
+.step-node:hover{border-color:var(--border2);background:var(--surface);}
+.step-node.active{border-left-color:var(--teal);background:var(--surface);box-shadow:0 0 12px rgba(0,229,180,0.08);}
+.step-node.running{border-left-color:var(--teal);}
+.step-node.done{border-left-color:var(--green);}
+.step-node.error{border-left-color:var(--red);}
+.step-dot{width:8px;height:8px;border-radius:50%;background:var(--muted2);flex-shrink:0;margin-top:4px;transition:background .3s;}
+.step-dot.running{background:var(--teal);animation:blink 1s infinite;}
+.step-dot.done{background:var(--green);}
+.step-dot.error{background:var(--red);}
+.step-meta{flex:1;}
+.step-time{font-size:9px;color:var(--muted);letter-spacing:.08em;display:block;margin-bottom:2px;}
+.step-label{font-size:12px;color:var(--text);font-weight:500;}
+.step-icon{font-size:16px;flex-shrink:0;}
+.step-connector{width:2px;height:16px;background:var(--border);margin:0 0 6px 20px;transition:background .3s;}
+.step-connector.active{background:var(--teal);}
+.detail-panel{background:var(--bg3);border:1px solid var(--border);padding:20px;overflow-y:auto;}
+.detail-panel.empty{display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;letter-spacing:.08em;}
+.detail-title{font-family:var(--display);font-size:15px;font-weight:800;color:var(--text);margin-bottom:4px;}
+.detail-subtitle{font-size:10px;color:var(--teal);letter-spacing:.1em;text-transform:uppercase;margin-bottom:14px;}
+.detail-body{font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:14px;}
+.detail-cmd{background:var(--bg);border:1px solid var(--border);padding:12px 14px;font-size:11px;color:var(--text);line-height:1.6;overflow-x:auto;white-space:pre;}
+.log-panel{background:var(--bg);border:1px solid var(--border);overflow-y:auto;max-height:220px;}
+.log-entry{display:flex;gap:8px;padding:5px 10px;font-size:11px;border-left:2px solid transparent;animation:slideIn .2s ease;}
+.log-entry.info{border-left-color:var(--blue);color:var(--muted);}
+.log-entry.success{border-left-color:var(--green);color:var(--green);}
+.log-entry.warn{border-left-color:var(--yellow);color:var(--yellow);}
+.log-entry.error{border-left-color:var(--red);color:var(--red);}
+.log-time{color:var(--muted2);flex-shrink:0;}
+.action-btn{display:inline-flex;align-items:center;gap:8px;padding:8px 16px;background:rgba(0,229,180,0.08);border:1px solid rgba(0,229,180,0.3);color:var(--teal);font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.08em;cursor:pointer;transition:all .2s;text-transform:uppercase;}
+.action-btn:hover{background:rgba(0,229,180,0.15);box-shadow:0 0 16px rgba(0,229,180,0.15);}
+.action-btn:disabled{opacity:.4;cursor:not-allowed;}
+.action-btn.danger{border-color:rgba(255,77,106,0.4);color:var(--red);background:rgba(255,77,106,0.06);}
+@keyframes slideIn{from{opacity:0;transform:translateY(-4px);}to{opacity:1;transform:translateY(0);}}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.3;}}
+@keyframes shoot{from{left:-100%;}to{left:100%;}}
+/* FLOW 1 */
+#flow-daily{grid-template-columns:360px 1fr;grid-template-rows:auto 1fr;}
+.daily-header{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--border);}
+.daily-left{display:flex;flex-direction:column;border-right:1px solid var(--border);overflow-y:auto;}
+.daily-left .panel-title{padding:16px 20px 8px;margin:0;border-bottom:1px solid var(--border);}
+.daily-steps{padding:16px 20px;}
+.daily-right{display:grid;grid-template-rows:1fr 200px;}
+.daily-detail{padding:24px;overflow-y:auto;}
+.daily-log{border-top:1px solid var(--border);}
+.daily-log .panel-title{padding:10px 14px 6px;margin:0;border-bottom:1px solid var(--border);}
+/* FLOW 2 */
+#flow-cicd{grid-template-rows:auto 1fr;grid-template-columns:1fr;}
+.cicd-top{padding:20px 24px;border-bottom:1px solid var(--border);}
+.cicd-bottom{display:grid;grid-template-columns:1fr 340px;}
+.pipeline-strip{display:flex;align-items:center;overflow-x:auto;padding:16px 0 8px;}
+.stage-box{flex-shrink:0;min-width:110px;border:1px solid var(--border);padding:10px 12px;cursor:pointer;transition:all .2s;background:var(--bg3);}
+.stage-box:hover{border-color:var(--border2);}
+.stage-box.active{border-color:var(--teal);box-shadow:0 0 10px rgba(0,229,180,0.12);}
+.stage-box.running{border-color:var(--teal);}
+.stage-box.passed{border-color:var(--green);}
+.stage-name{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;}
+.stage-status{font-size:9px;font-weight:700;}
+.stage-status.pending{color:var(--muted2);}
+.stage-status.running{color:var(--teal);}
+.stage-status.passed{color:var(--green);}
+.stage-arrow{width:20px;height:2px;background:var(--border2);flex-shrink:0;position:relative;overflow:hidden;}
+.stage-arrow.active::before{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:var(--teal);animation:shoot .4s ease forwards;}
+.manual-gate{display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;width:36px;padding:4px;border:1px dashed rgba(255,196,64,0.4);color:var(--yellow);font-size:14px;margin:0 4px;}
+.manual-gate-label{font-size:8px;letter-spacing:.06em;color:var(--yellow);}
+.cicd-jobs{padding:20px 24px;border-right:1px solid var(--border);overflow-y:auto;}
+.job-item{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);font-size:11px;}
+.job-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.cicd-detail{padding:20px;overflow-y:auto;}
+/* FLOW 3 */
+#flow-security{grid-template-columns:300px 1fr;}
+.sec-layers{overflow-y:auto;border-right:1px solid var(--border);padding:20px;}
+.sec-layer{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-left:3px solid transparent;cursor:pointer;transition:all .2s;margin-bottom:4px;background:var(--bg3);position:relative;}
+.sec-layer:hover{background:var(--surface);}
+.sec-layer.active{background:var(--surface);}
+.sec-layer-num{font-size:9px;color:var(--muted2);font-weight:700;width:16px;flex-shrink:0;}
+.sec-layer-name{font-size:11px;font-weight:500;flex:1;}
+.sec-layer-tool{font-size:9px;color:var(--muted);white-space:nowrap;}
+.attack-dot{width:10px;height:10px;border-radius:50%;background:var(--red);position:absolute;right:8px;opacity:0;transition:all .3s;}
+.attack-dot.visible{opacity:1;}
+.attack-dot.blocked{background:var(--green);}
+.sec-right{display:flex;flex-direction:column;padding:24px;gap:16px;overflow-y:auto;}
+/* FLOW 4 */
+#flow-gateway{grid-template-columns:260px 1fr 300px;min-height:calc(100vh - 110px);}
+.gw-left{border-right:1px solid var(--border);overflow-y:auto;}
+.gw-left .panel-title{padding:16px 20px 8px;margin:0;border-bottom:1px solid var(--border);}
+.role-card{padding:10px 16px;border-left:3px solid transparent;border-bottom:1px solid var(--border);cursor:pointer;transition:all .2s;}
+.role-card:hover{background:var(--surface);}
+.role-card.active{border-left-color:var(--teal);background:var(--surface);}
+.role-name{font-size:12px;font-weight:600;}
+.role-scopes{font-size:10px;color:var(--muted);margin-top:2px;}
+.token-box{margin:12px 16px;padding:10px;background:var(--bg);border:1px solid var(--border);font-size:9px;color:var(--purple);word-break:break-all;line-height:1.5;max-height:80px;overflow:hidden;}
+.gw-center{display:flex;flex-direction:column;padding:20px;}
+.arch-flow{display:flex;align-items:center;flex-wrap:nowrap;overflow-x:auto;padding:20px 0;flex:0 0 auto;}
+.arch-box{min-width:80px;padding:10px 8px;border:1px solid var(--border);text-align:center;background:var(--bg3);transition:all .3s;flex-shrink:0;}
+.arch-box.active-route{border-color:var(--teal);box-shadow:0 0 12px rgba(0,229,180,0.2);}
+.arch-box.error-route{border-color:var(--red);box-shadow:0 0 10px rgba(255,77,106,0.2);}
+.arch-icon{font-size:18px;margin-bottom:4px;}
+.arch-label{font-size:9px;color:var(--muted);letter-spacing:.06em;white-space:nowrap;}
+.arch-arrow{width:28px;height:2px;background:var(--border2);position:relative;overflow:hidden;flex-shrink:0;}
+.arch-arrow.shoot::after{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:var(--teal);animation:shoot .5s ease forwards;}
+.arch-arrow.error-shoot::after{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:var(--red);animation:shoot .5s ease forwards;}
+.arch-services{display:flex;flex-direction:column;gap:6px;flex-shrink:0;}
+.ep-selector{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 8px;}
+.ep-chip{padding:4px 10px;border:1px solid var(--border2);font-size:10px;color:var(--muted);cursor:pointer;transition:all .2s;}
+.ep-chip:hover{border-color:var(--teal);color:var(--teal);}
+.ep-chip.active{border-color:var(--teal);color:var(--teal);background:rgba(0,229,180,0.06);}
+.response-box{flex:1;background:var(--bg);border:1px solid var(--border);padding:12px;overflow-y:auto;font-size:11px;line-height:1.6;min-height:100px;}
+.gw-right{border-left:1px solid var(--border);display:flex;flex-direction:column;}
+.gw-right .panel-title{padding:16px 16px 8px;margin:0;border-bottom:1px solid var(--border);}
+.gw-log{flex:1;overflow-y:auto;padding:8px;}
+/* FLOW 5 */
+#flow-terraform{grid-template-columns:380px 1fr;}
+.tf-left{border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;}
+.tf-left .panel-title{padding:16px 20px 8px;margin:0;border-bottom:1px solid var(--border);}
+.tf-steps{padding:16px 20px;}
+.tf-right{padding:24px;overflow-y:auto;}
+.code-block{background:var(--bg);border:1px solid var(--border);padding:14px;font-size:11px;line-height:1.7;overflow-x:auto;white-space:pre;color:var(--text);}
+/* FLOW 6 */
+#flow-access{grid-template-rows:auto 1fr;}
+.access-top{padding:20px 24px;border-bottom:1px solid var(--border);}
+.access-bottom{display:grid;grid-template-columns:1fr 360px;}
+.am-strip{display:flex;align-items:center;overflow-x:auto;padding:16px 0;}
+.am-step{flex-shrink:0;min-width:100px;border:1px solid var(--border);padding:10px;cursor:pointer;transition:all .2s;background:var(--bg3);text-align:center;}
+.am-step:hover{border-color:var(--border2);}
+.am-step.active{border-color:var(--teal);box-shadow:0 0 10px rgba(0,229,180,0.1);}
+.am-step.running{border-color:var(--teal);}
+.am-step.done{border-color:var(--green);}
+.am-step.denied{border-color:var(--red);}
+.am-icon{font-size:20px;margin-bottom:4px;}
+.am-label{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);}
+.am-arrow{width:16px;height:2px;background:var(--border2);flex-shrink:0;position:relative;overflow:hidden;}
+.am-arrow.active::after{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:var(--teal);animation:shoot .3s ease forwards;}
+.access-main{padding:20px 24px;border-right:1px solid var(--border);overflow-y:auto;}
+.access-detail{padding:20px;overflow-y:auto;}
+/* FLOW 7 */
+#flow-incident{grid-template-columns:320px 1fr;}
+.ir-left{border-right:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column;}
+.ir-left .panel-title{padding:16px 20px 8px;margin:0;border-bottom:1px solid var(--border);}
+.ir-steps{padding:16px 20px;}
+.ir-right{display:grid;grid-template-rows:1fr auto;overflow:hidden;}
+.ir-detail{padding:20px;overflow-y:auto;border-bottom:1px solid var(--border);}
+.ir-log-wrap .panel-title{padding:10px 14px 6px;margin:0;border-bottom:1px solid var(--border);}
+.ir-log{overflow-y:auto;max-height:200px;padding:8px 14px;}
+/* shared JSON colors */
+.j-key{color:var(--blue);}
+.j-str{color:var(--orange);}
+.j-num{color:var(--purple);}
+.j-bool{color:var(--teal);}
+.section-header{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border);background:var(--bg2);}
+.section-title{font-family:var(--display);font-size:14px;font-weight:800;}
+.section-desc{font-size:11px;color:var(--muted);margin-top:2px;}
+select,input{background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:6px 10px;font-family:var(--mono);font-size:11px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">OF</div>
+    <div class="logo-text">Ocado<span>Flow</span></div>
+  </div>
+  <div class="header-meta">
+    <span class="badge badge-green">● ENGINEER FLOWS</span>
+    <span class="badge badge-blue">7 SCENARIOS</span>
+    <span class="version">DevOps Portfolio · S.Vainer · VN1230</span>
+  </div>
+</header>
+
+<nav class="flow-nav">
+  <button class="flow-btn active" onclick="switchFlow('daily')">01 Daily Duties</button>
+  <button class="flow-btn" onclick="switchFlow('cicd')">02 CI/CD Pipeline</button>
+  <button class="flow-btn" onclick="switchFlow('security')">03 Security Design</button>
+  <button class="flow-btn" onclick="switchFlow('gateway')">04 API Gateway</button>
+  <button class="flow-btn" onclick="switchFlow('terraform')">05 Terraform</button>
+  <button class="flow-btn" onclick="switchFlow('access')">06 Access Management</button>
+  <button class="flow-btn" onclick="switchFlow('incident')">07 Incident Response</button>
+</nav>
+
+<main class="flow-main">
+
+<!-- FLOW 1 -->
+<section id="flow-daily" class="flow-section active">
+  <div class="section-header" style="grid-column:1/-1">
+    <div>
+      <div class="section-title">Daily Duties — DevOps Engineer @ Ocado</div>
+      <div class="section-desc">A typical working day managing the enterprise integration platform</div>
+    </div>
+    <button class="action-btn" id="daily-run-btn" onclick="runDay()">&#9654; Run Day</button>
+  </div>
+  <div class="daily-left">
+    <div class="panel-title">Today's Schedule</div>
+    <div class="daily-steps" id="daily-steps-container"></div>
+  </div>
+  <div class="daily-right">
+    <div class="daily-detail detail-panel empty" id="daily-detail">Select a task to see details</div>
+    <div class="daily-log">
+      <div class="panel-title">Activity Log</div>
+      <div class="log-panel" id="daily-log" style="max-height:160px;border:none;"></div>
+    </div>
+  </div>
+</section>
+
+<!-- FLOW 2 -->
+<section id="flow-cicd" class="flow-section">
+  <div class="section-header">
+    <div>
+      <div class="section-title">CI/CD Pipeline — GitLab CI (8 Stages)</div>
+      <div class="section-desc">build &rarr; test &rarr; security &rarr; package &rarr; deploy:staging &rarr; verify &rarr; deploy:production &rarr; notify</div>
+    </div>
+    <button class="action-btn" id="cicd-run-btn" onclick="runPipeline()">&#9654; Run Pipeline</button>
+  </div>
+  <div class="cicd-top">
+    <div class="pipeline-strip" id="pipeline-strip"></div>
+  </div>
+  <div class="cicd-bottom">
+    <div class="cicd-jobs">
+      <div class="panel-title" id="cicd-jobs-title">Jobs — click a stage</div>
+      <div id="cicd-jobs-list"></div>
+    </div>
+    <div class="cicd-detail detail-panel empty" id="cicd-detail">Click a stage to see the CI config</div>
+  </div>
+</section>
+
+<!-- FLOW 3 -->
+<section id="flow-security" class="flow-section">
+  <div class="sec-layers">
+    <div class="panel-title">Defence in Depth — 10 Layers</div>
+    <div style="margin-bottom:12px;">
+      <button class="action-btn danger" onclick="traceAttackPath()">&#128308; Trace Attack Path</button>
+    </div>
+    <div id="sec-layers-container"></div>
+  </div>
+  <div class="sec-right">
+    <div>
+      <div class="section-title">Security Architecture</div>
+      <div class="section-desc">Zero-trust, layered controls across the entire delivery chain</div>
+    </div>
+    <div class="detail-panel empty" id="sec-detail" style="min-height:300px;flex:1;">Select a layer to see details</div>
+  </div>
+</section>
+
+<!-- FLOW 4 -->
+<section id="flow-gateway" class="flow-section">
+  <div class="gw-left">
+    <div class="panel-title">Identity / Role</div>
+    <div id="role-cards"></div>
+    <div class="panel-title" style="padding:12px 16px 6px;margin:0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);">JWT Payload</div>
+    <div class="token-box" id="token-display">Select a role</div>
+  </div>
+  <div class="gw-center">
+    <div class="panel-title">Request Flow</div>
+    <div class="arch-flow" id="arch-flow"></div>
+    <div class="ep-selector" id="ep-selector"></div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+      <select id="gw-method"><option>GET</option><option>POST</option><option>DELETE</option></select>
+      <input id="gw-url" value="/api/v1/products" style="flex:1;">
+      <button class="action-btn" id="gw-send-btn" onclick="sendGwRequest()">&#9654; Send</button>
+    </div>
+    <div class="response-box" id="gw-response">// Response will appear here</div>
+  </div>
+  <div class="gw-right">
+    <div class="panel-title">Access Log</div>
+    <div class="gw-log" id="gw-log"></div>
+  </div>
+</section>
+
+<!-- FLOW 5 -->
+<section id="flow-terraform" class="flow-section">
+  <div class="tf-left">
+    <div class="panel-title">IaC Workflow</div>
+    <div style="padding:12px 20px 8px;">
+      <button class="action-btn" id="tf-run-btn" onclick="runTerraform()">&#9654; Run tf workflow</button>
+    </div>
+    <div class="tf-steps" id="tf-steps-container"></div>
+  </div>
+  <div class="tf-right">
+    <div class="section-title" style="margin-bottom:4px;">Terraform Strategy</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:16px;">S3 remote state &middot; DynamoDB locking &middot; for_each pattern &middot; per-service IAM roles</div>
+    <div class="detail-panel empty" id="tf-detail" style="min-height:400px;">Select a step to see Terraform config</div>
+  </div>
+</section>
+
+<!-- FLOW 6 -->
+<section id="flow-access" class="flow-section">
+  <div class="access-top">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div class="section-title">OAuth2 Credential Lifecycle</div>
+        <div class="section-desc" style="margin-top:2px;">From access request to credential rotation</div>
+      </div>
+      <button class="action-btn" id="access-run-btn" onclick="runAccessFlow()">&#9654; Process Request</button>
+    </div>
+    <div class="am-strip" id="am-strip"></div>
+  </div>
+  <div class="access-bottom">
+    <div class="access-main">
+      <div class="panel-title">Step Details</div>
+      <div class="detail-panel empty" id="access-detail" style="min-height:160px;">Select a step or run the flow</div>
+      <div class="panel-title" style="margin-top:16px;">Audit Trail</div>
+      <div class="log-panel" id="access-audit" style="max-height:200px;border:none;"></div>
+    </div>
+    <div class="access-detail">
+      <div class="panel-title">RBAC Permission Matrix</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:6px 8px;color:var(--muted);font-weight:500;">Scope</th>
+          <th style="padding:6px 8px;color:var(--teal);">admin</th>
+          <th style="padding:6px 8px;color:var(--blue);">ops</th>
+          <th style="padding:6px 8px;color:var(--muted);">viewer</th>
+        </tr></thead>
+        <tbody id="rbac-table"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- FLOW 7 -->
+<section id="flow-incident" class="flow-section">
+  <div class="ir-left">
+    <div class="panel-title">Alert Chain</div>
+    <div style="padding:8px 20px 12px;">
+      <button class="action-btn danger" id="ir-run-btn" onclick="simulateIncident()">&#128308; Simulate Incident</button>
+    </div>
+    <div class="ir-steps" id="ir-steps-container"></div>
+  </div>
+  <div class="ir-right">
+    <div class="ir-detail detail-panel empty" id="ir-detail">Run the simulation or click a step</div>
+    <div class="ir-log-wrap">
+      <div class="panel-title">Incident Log</div>
+      <div class="ir-log log-panel" id="ir-log" style="border:none;"></div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<script>
+// ── Sanitisation wrapper (DOMPurify) ──────────────────────────
+// All dynamic HTML is hardcoded in this file; sanitise as defence-in-depth.
+const PURIFY_CONFIG = { ALLOWED_TAGS:['b','code','span','br','div','pre'], ALLOWED_ATTR:['style','class'] };
+function sh(el, html) {
+  el.innerHTML = typeof DOMPurify !== 'undefined'
+    ? DOMPurify.sanitize(html, PURIFY_CONFIG)
+    : html;
+}
+
+// ── Core utilities ────────────────────────────────────────────
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function addLog(panelId, level, msg) {
+  const p = document.getElementById(panelId);
+  if (!p) return;
+  const ts = new Date().toTimeString().slice(0,8);
+  const el = document.createElement('div');
+  el.className = 'log-entry ' + level;
+  const timeSpan = document.createElement('span');
+  timeSpan.className = 'log-time';
+  timeSpan.textContent = ts;
+  const msgSpan = document.createElement('span');
+  msgSpan.textContent = msg;
+  el.appendChild(timeSpan);
+  el.appendChild(msgSpan);
+  p.appendChild(el);
+  p.scrollTop = p.scrollHeight;
+}
+
+function setDot(nodeId, state) {
+  const n = document.getElementById(nodeId);
+  if (!n) return;
+  const dot = n.querySelector('.step-dot');
+  if (dot) dot.className = 'step-dot' + (state ? ' ' + state : '');
+  ['running','done','error','active'].forEach(c => n.classList.remove(c));
+  if (state) n.classList.add(state);
+}
+
+function switchFlow(tab) {
+  document.querySelectorAll('.flow-section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.flow-btn').forEach(b => {
+    b.classList.remove('active');
+    if ((b.getAttribute('onclick') || '').includes("'" + tab + "'")) b.classList.add('active');
+  });
+  const sec = document.getElementById('flow-' + tab);
+  if (sec) sec.classList.add('active');
+}
+
+function syntaxH(str) {
+  try {
+    const j = JSON.parse(str);
+    return JSON.stringify(j, null, 2)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/("[\w]+")\s*:/g, '<span class="j-key">$1</span>:')
+      .replace(/:\s*(".*?")/g, ': <span class="j-str">$1</span>')
+      .replace(/:\s*(\d+\.?\d*)/g, ': <span class="j-num">$1</span>');
+  } catch(e) { return str; }
+}
+
+// ══════════════════════════════════════════════════════════════
+// FLOW 1 — DAILY DUTIES
+// ══════════════════════════════════════════════════════════════
+const DAILY = [
+  { id:'dd-01', time:'08:00', icon:'🩺', label:'Morning Health Check',
+    cmd:'# Validate all 3 services are alive\nansible-playbook playbook.yml -t health\n\n# Expected: HTTP 401 (auth-protected = service alive)\n# products :8081/api/v1/products  → 401\n# orders   :8082/api/v1/orders    → 401\n# iam      :8083/api/v1/iam/users → 401',
+    detail:'Run the Ansible health validation play. A 401 response confirms the service is alive and the OAuth2 gateway is enforcing authentication. Check CloudWatch: CPU target 70%, no active alarms on ocadoflow-alerts SNS topic.',
+    log:['info','Health check complete — 3/3 services responding 401'] },
+  { id:'dd-02', time:'09:00', icon:'🔑', label:'Access Request Queue',
+    cmd:'# Audit Cognito user pool\naws cognito-idp list-users \\\n  --user-pool-id eu-west-1_XXXXXXX \\\n  --region eu-west-1\n\n# Approve via IAM service (admin token)\ncurl -X PUT https://api.ocadoflow.io/api/v1/iam/roles/ops \\\n  -H "Authorization: Bearer $ADMIN_JWT" \\\n  -d \'{"name":"ops","permissions":["products:read","orders:read","orders:write"]}\'',
+    detail:'Review pending access requests in the IT portal. Cross-check each requested scope against the RBAC matrix. For admin role: requires four-eyes approval. Approve or deny via the IAM service API. Log every decision in the linked Jira ticket.',
+    log:['success','2 access requests processed — 1 approved, 1 escalated'] },
+  { id:'dd-03', time:'10:30', icon:'⚙️', label:'CI/CD Pipeline Review',
+    cmd:'# Check GitLab pipeline status\nglab ci status --branch main\n\n# Review OWASP dep-check gate\n# Gate: CVSS base score < 7.0\n# If breached: create severity-HIGH Jira ticket, block merge',
+    detail:'Open GitLab CI dashboard. Confirm all 8 stages are green for the latest main push. Review Semgrep SAST output and OWASP Dependency-Check reports. If any CVSS score >= 7.0, create a HIGH ticket and block the merge request.',
+    log:['success','Pipeline main@8dfc522 — all 8 stages passed'] },
+  { id:'dd-04', time:'13:00', icon:'📊', label:'Environment Monitoring',
+    cmd:'# CloudWatch ECS CPU check\naws cloudwatch get-metric-statistics \\\n  --namespace AWS/ECS \\\n  --metric-name ECSServiceAverageCPUUtilization \\\n  --dimensions Name=ClusterName,Value=ocadoflow-cluster \\\n  --period 300 --statistics Average \\\n  --start-time $(date -u -d "1 hour ago" +%Y-%m-%dT%H:%M:%SZ) \\\n  --end-time $(date -u +%Y-%m-%dT%H:%M:%SZ)',
+    detail:'Review CloudWatch dashboards: ECS CPU utilisation (target 70%), ALB 5xx error rate, P99 latency, RDS connection pool. Confirm SNS topic ocadoflow-alerts has no unacknowledged alarms.',
+    log:['info','CPU: products=18% orders=34% iam=12% — all nominal'] },
+  { id:'dd-05', time:'15:30', icon:'📄', label:'Documentation Update',
+    cmd:'# Validate RBAC policy after any change\npytest tests/rbac/ -v\n\n# Commit and raise MR\ngit add services/iam/rbac-policy.yaml\ngit commit -m "docs: update RBAC matrix — add ops:orders:write"\ngit push origin feature/rbac-update',
+    detail:'Update runbooks, architecture diagrams, and the permission matrix after any infrastructure or policy change. Share diffs with the Enterprise Integration Architect for review before merging. Any RBAC change must pass the CI test:rbac-policy pytest suite.',
+    log:['info','Runbook updated — RBAC matrix v1.4 pushed to Confluence'] },
+  { id:'dd-06', time:'17:30', icon:'🔔', label:'On-Call Handoff',
+    cmd:'# Prepare Slack #on-call handoff summary\necho "Last green pipeline: $(git log --oneline -1)"\necho "Alarms: $(aws cloudwatch describe-alarms \\\n  --state-value ALARM --query \'MetricAlarms[].AlarmName\' --output text)"\necho "ECS tasks: $(aws ecs list-tasks \\\n  --cluster ocadoflow-cluster --output text | wc -l) running"',
+    detail:'End-of-day Slack message to #on-call: current alarm state, any open P1/P2 incidents, ECS task health, last successful pipeline SHA, and any manual gates pending in GitLab. Confirm the SNS to Slack Lambda webhook is active.',
+    log:['success','Handoff posted to #on-call — no active P1/P2 incidents'] }
+];
+
+let dailyRunning = false;
+
+function buildDailySteps() {
+  const c = document.getElementById('daily-steps-container');
+  DAILY.forEach((s, i) => {
+    const wrap = document.createElement('div');
+
+    const node = document.createElement('div');
+    node.className = 'step-node';
+    node.id = s.id;
+    node.onclick = () => selectDailyStep(s.id);
+
+    const icon = document.createElement('span');
+    icon.className = 'step-icon';
+    icon.textContent = s.icon;
+
+    const dot = document.createElement('div');
+    dot.className = 'step-dot';
+
+    const meta = document.createElement('div');
+    meta.className = 'step-meta';
+    const timeEl = document.createElement('span');
+    timeEl.className = 'step-time';
+    timeEl.textContent = s.time;
+    const labelEl = document.createElement('span');
+    labelEl.className = 'step-label';
+    labelEl.textContent = s.label;
+    meta.appendChild(timeEl);
+    meta.appendChild(labelEl);
+
+    node.appendChild(icon);
+    node.appendChild(dot);
+    node.appendChild(meta);
+    wrap.appendChild(node);
+
+    if (i < DAILY.length - 1) {
+      const conn = document.createElement('div');
+      conn.className = 'step-connector';
+      conn.id = 'conn-' + s.id;
+      wrap.appendChild(conn);
+    }
+    c.appendChild(wrap);
+  });
+}
+
+function selectDailyStep(id) {
+  const s = DAILY.find(x => x.id === id);
+  if (!s) return;
+  document.querySelectorAll('#flow-daily .step-node').forEach(n => n.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  const d = document.getElementById('daily-detail');
+  d.classList.remove('empty');
+  d.style.display = 'block';
+
+  const title = document.createElement('div');
+  title.className = 'detail-title';
+  title.textContent = s.icon + ' ' + s.label;
+  const sub = document.createElement('div');
+  sub.className = 'detail-subtitle';
+  sub.textContent = s.time + ' — Daily Duty';
+  const body = document.createElement('div');
+  body.className = 'detail-body';
+  body.textContent = s.detail;
+  const cmd = document.createElement('div');
+  cmd.className = 'detail-cmd';
+  cmd.textContent = s.cmd;
+
+  d.replaceChildren(title, sub, body, cmd);
+}
+
+async function runDay() {
+  if (dailyRunning) return;
+  dailyRunning = true;
+  const btn = document.getElementById('daily-run-btn');
+  btn.disabled = true;
+  document.getElementById('daily-log').replaceChildren();
+  DAILY.forEach(s => { setDot(s.id, ''); const c = document.getElementById('conn-' + s.id); if (c) c.classList.remove('active'); });
+
+  for (let i = 0; i < DAILY.length; i++) {
+    const s = DAILY[i];
+    setDot(s.id, 'running');
+    selectDailyStep(s.id);
+    await sleep(1400);
+    setDot(s.id, 'done');
+    addLog('daily-log', s.log[0], s.log[1]);
+    const c = document.getElementById('conn-' + s.id);
+    if (c) c.classList.add('active');
+    await sleep(200);
+  }
+  btn.disabled = false;
+  dailyRunning = false;
+}
+
+// ══════════════════════════════════════════════════════════════
+// FLOW 2 — CI/CD PIPELINE
+// ══════════════════════════════════════════════════════════════
+const PIPELINE = [
+  { id:'build', label:'build', duration:900,
+    jobs:[{name:'build:compile × products',tool:'maven:3.9-temurin-21',color:'--green'},{name:'build:compile × orders',tool:'maven:3.9-temurin-21',color:'--green'},{name:'build:compile × iam',tool:'maven:3.9-temurin-21',color:'--green'}],
+    yaml:'build:compile:\n  stage: build\n  image: maven:3.9-eclipse-temurin-21\n  parallel:\n    matrix:\n      - SERVICE: [products, orders, iam]\n  script:\n    - mvn clean package -DskipTests -q\n  artifacts:\n    paths: [services/$SERVICE/target/*.jar]\n    expire_in: 1 hour',
+    detail:'Compiles all 3 Spring Boot JARs in parallel using the service matrix. Maven cache keyed per service+branch. Artifacts retained 1h for downstream package stage.' },
+  { id:'test', label:'test', duration:1400,
+    jobs:[{name:'test:unit × 3',tool:'maven:3.9-temurin-21',color:'--green'},{name:'test:integration × 3',tool:'docker:24-dind',color:'--green'},{name:'test:rbac-policy',tool:'python:3.12-slim',color:'--green'}],
+    yaml:'test:unit:\n  stage: test\n  <<: *service_matrix\n  script:\n    - mvn test -q\n\ntest:rbac-policy:\n  image: python:3.12-slim\n  script:\n    - pip install -q pytest pyyaml\n    - pytest tests/rbac/ -v --tb=short',
+    detail:'Unit tests per service + integration tests via docker-compose + RBAC policy tests (pytest). JUnit XML reports uploaded to GitLab for MR diff decoration.' },
+  { id:'security', label:'security', duration:1800,
+    jobs:[{name:'security:sast (Semgrep)',tool:'returntocorp/semgrep',color:'--orange'},{name:'security:dependency-scan × 3',tool:'OWASP maven plugin',color:'--orange'},{name:'security:terraform (tfsec)',tool:'aquasec/tfsec',color:'--orange'},{name:'security:secrets-scan',tool:'trufflesecurity/trufflehog',color:'--orange'}],
+    yaml:'security:sast:\n  image: returntocorp/semgrep:latest\n  script: [semgrep --config=auto --error services/]\n  allow_failure: false\n\nsecurity:terraform:\n  image: aquasec/tfsec:latest\n  script: [tfsec infra/terraform/ --minimum-severity HIGH]\n\nsecurity:secrets-scan:\n  image: trufflesecurity/trufflehog:latest\n  script: [trufflehog filesystem . --only-verified --fail]',
+    detail:'Four security gates: SAST (Semgrep), dependency CVEs (OWASP, gate CVSS < 7.0), IaC misconfigs (tfsec), and secret leakage (TruffleHog). All have allow_failure: false.' },
+  { id:'package', label:'package', duration:1200,
+    jobs:[{name:'package:docker × 3 (ECR push)',tool:'docker:24-dind',color:'--blue'},{name:'package:container-scan × 3',tool:'aquasec/trivy',color:'--blue'}],
+    yaml:'package:docker:\n  script:\n    - IMAGE_TAG="$ECR_REGISTRY/$APP_NAME/$SERVICE:$CI_COMMIT_SHORT_SHA"\n    - docker build -t $IMAGE_TAG services/$SERVICE/\n    - docker push $IMAGE_TAG\n\npackage:container-scan:\n  needs: ["package:docker"]\n  script:\n    - trivy image --exit-code 1 --severity HIGH,CRITICAL $IMAGE',
+    detail:'Builds Docker images tagged with immutable commit SHA. Pushes to ECR (KMS encrypted). Trivy scans the pushed image — blocks on any HIGH or CRITICAL CVE.' },
+  { id:'deploy-staging', label:'deploy:staging', duration:1200,
+    jobs:[{name:'deploy:staging',tool:'hashicorp/terraform:1.6.0',color:'--teal'}],
+    yaml:'deploy:staging:\n  image: hashicorp/terraform:${TERRAFORM_VER}\n  variables:\n    TF_VAR_environment: "staging"\n  script:\n    - terraform init -backend-config="key=staging/terraform.tfstate"\n    - terraform apply -auto-approve staging.plan\n    - aws ecs update-service --force-new-deployment\n    - aws ecs wait services-stable\n  only: [main, /^release\\/.*/]',
+    detail:'Terraform applies infra changes to staging, triggers force-new-deployment on all 3 ECS services, waits for stable. Auto-triggered on every push to main.' },
+  { id:'verify-staging', label:'verify:staging', duration:800,
+    jobs:[{name:'verify:smoke-tests',tool:'python:3.12-slim',color:'--green'},{name:'verify:rbac-live',tool:'python:3.12-slim',color:'--green'}],
+    yaml:'verify:smoke-tests:\n  script:\n    - pytest tests/smoke/ -v\n        --base-url=https://staging.api.ocadoflow.io\n\nverify:rbac-live:\n  script:\n    - python3 tests/rbac/live_check.py --env staging',
+    detail:'Smoke tests hit the live staging API endpoints. RBAC live check validates role-to-scope enforcement is working against the deployed Cognito pool.' },
+  { id:'deploy-prod', label:'deploy:production', duration:0, manual:true,
+    jobs:[{name:'deploy:production  MANUAL GATE',tool:'hashicorp/terraform:1.6.0',color:'--yellow'},{name:'rollback:production  MANUAL',tool:'amazon/aws-cli',color:'--red'}],
+    yaml:'deploy:production:\n  when: manual          # HUMAN APPROVAL REQUIRED\n  only: [/^release\\/.*/]\n  needs:\n    - verify:smoke-tests\n    - verify:rbac-live\n  script:\n    - terraform apply -auto-approve prod.plan\n    - aws ecs update-service --force-new-deployment\n\nrollback:production:\n  when: manual\n  script:\n    - aws ecs update-service --task-definition ...:PREV_REVISION',
+    detail:'HUMAN GATE — engineer must click play in GitLab UI. Requires both smoke tests and RBAC live check green. Only runs on release/* branches.' },
+  { id:'notify', label:'notify', duration:300,
+    jobs:[{name:'notify:slack (always)',tool:'curlimages/curl',color:'--purple'}],
+    yaml:'notify:slack:\n  when: always\n  script:\n    - STATUS="${CI_JOB_STATUS}"\n    - COLOR=$([[ "$STATUS" == "success" ]] && echo "#39d98a" || echo "#ff4d6a")\n    - curl -X POST $SLACK_WEBHOOK_URL \\\n        -d \'{"attachments":[{"color":"\'$COLOR\'","text":"OcadoFlow pipeline \'$STATUS\'"}]}\'',
+    detail:'Slack notification always fires. Colour-coded: green for success, red for failure. Posts to #deployments with commit SHA, branch, and author.' }
+];
+
+let pipelineRunning = false;
+
+function buildPipelineStrip() {
+  const strip = document.getElementById('pipeline-strip');
+  PIPELINE.forEach((stage, i) => {
+    if (i > 0) {
+      const arrow = document.createElement('div');
+      arrow.className = 'stage-arrow';
+      arrow.id = 'arrow-' + stage.id;
+      strip.appendChild(arrow);
+    }
+    if (stage.manual) {
+      const gate = document.createElement('div');
+      gate.className = 'manual-gate';
+      const lock = document.createElement('span');
+      lock.textContent = '🔒';
+      const lbl = document.createElement('span');
+      lbl.className = 'manual-gate-label';
+      lbl.textContent = 'manual';
+      gate.appendChild(lock);
+      gate.appendChild(lbl);
+      strip.appendChild(gate);
+      const arr2 = document.createElement('div');
+      arr2.className = 'stage-arrow';
+      strip.appendChild(arr2);
+    }
+    const box = document.createElement('div');
+    box.className = 'stage-box';
+    box.id = 'stage-' + stage.id;
+    const nameEl = document.createElement('div');
+    nameEl.className = 'stage-name';
+    nameEl.textContent = stage.label;
+    const statusEl = document.createElement('div');
+    statusEl.className = 'stage-status pending';
+    statusEl.id = 'status-' + stage.id;
+    statusEl.textContent = 'pending';
+    box.appendChild(nameEl);
+    box.appendChild(statusEl);
+    box.onclick = () => selectStage(stage.id);
+    strip.appendChild(box);
+  });
+}
+
+function selectStage(id) {
+  const stage = PIPELINE.find(s => s.id === id);
+  if (!stage) return;
+  document.querySelectorAll('.stage-box').forEach(b => b.classList.remove('active'));
+  document.getElementById('stage-' + id).classList.add('active');
+  document.getElementById('cicd-jobs-title').textContent = 'Jobs — ' + stage.label;
+
+  const list = document.getElementById('cicd-jobs-list');
+  list.replaceChildren();
+  const colorMap = {'--green':'var(--green)','--orange':'var(--orange)','--blue':'var(--blue)','--teal':'var(--teal)','--yellow':'var(--yellow)','--red':'var(--red)','--purple':'var(--purple)'};
+  stage.jobs.forEach(j => {
+    const el = document.createElement('div');
+    el.className = 'job-item';
+    const dot = document.createElement('div');
+    dot.className = 'job-dot';
+    dot.style.background = colorMap[j.color] || 'var(--muted)';
+    const name = document.createElement('span');
+    name.style.flex = '1';
+    name.textContent = j.name;
+    const tool = document.createElement('span');
+    tool.style.cssText = 'color:var(--muted);font-size:10px';
+    tool.textContent = j.tool;
+    el.appendChild(dot); el.appendChild(name); el.appendChild(tool);
+    list.appendChild(el);
+  });
+
+  const det = document.getElementById('cicd-detail');
+  det.classList.remove('empty');
+  det.style.display = 'block';
+  const title = document.createElement('div');
+  title.className = 'detail-title';
+  title.textContent = stage.label;
+  const sub = document.createElement('div');
+  sub.className = 'detail-subtitle';
+  sub.textContent = (stage.manual ? 'MANUAL GATE · ' : '') + 'Stage ' + (PIPELINE.indexOf(stage) + 1) + ' of 8';
+  const body = document.createElement('div');
+  body.className = 'detail-body';
+  body.textContent = stage.detail;
+  const cmd = document.createElement('div');
+  cmd.className = 'detail-cmd';
+  cmd.textContent = stage.yaml;
+  det.replaceChildren(title, sub, body, cmd);
+}
+
+async function runPipeline() {
+  if (pipelineRunning) return;
+  pipelineRunning = true;
+  const btn = document.getElementById('cicd-run-btn');
+  btn.disabled = true;
+  PIPELINE.forEach(s => {
+    const box = document.getElementById('stage-' + s.id);
+    if (box) box.className = 'stage-box';
+    const st = document.getElementById('status-' + s.id);
+    if (st) { st.className = 'stage-status pending'; st.textContent = 'pending'; }
+  });
+  document.querySelectorAll('.stage-arrow').forEach(a => a.classList.remove('active'));
+
+  for (let i = 0; i < PIPELINE.length; i++) {
+    const s = PIPELINE[i];
+    if (i > 0) {
+      const arr = document.getElementById('arrow-' + s.id);
+      if (arr) arr.classList.add('active');
+      await sleep(300);
+    }
+    const box = document.getElementById('stage-' + s.id);
+    const st = document.getElementById('status-' + s.id);
+    if (box) box.className = 'stage-box running';
+    if (st) { st.className = 'stage-status running'; st.textContent = s.manual ? 'waiting' : 'running'; }
+    selectStage(s.id);
+    await sleep(s.manual ? 1200 : s.duration);
+    if (st) { st.className = 'stage-status passed'; st.textContent = s.manual ? 'approved' : 'passed'; }
+    if (box) box.className = 'stage-box passed';
+    await sleep(100);
+  }
+  btn.disabled = false;
+  pipelineRunning = false;
+}
+
+// ══════════════════════════════════════════════════════════════
+// FLOW 3 — SECURITY
+// ══════════════════════════════════════════════════════════════
+const SEC_LAYERS = [
+  { id:'sec-1', num:'01', name:'Pre-commit Secrets Scan', tool:'TruffleHog', accent:'var(--red)',
+    detail:'TruffleHog scans the filesystem before code reaches GitLab. Command: trufflehog filesystem . --only-verified --fail. Detects: AWS keys, JWT secrets, DB passwords. allow_failure: false — a single verified finding stops the pipeline.',
+    blocked:'Stops secrets before they enter version control.' },
+  { id:'sec-2', num:'02', name:'SAST Code Analysis', tool:'Semgrep', accent:'var(--orange)',
+    detail:'Semgrep --config=auto across all Java source in services/. Detects: SQL injection, SSRF, hardcoded credentials, insecure deserialisation. Outputs GitLab-compatible SAST JSON. allow_failure: false.',
+    blocked:'Catches code-level vulnerabilities before reaching staging.' },
+  { id:'sec-3', num:'03', name:'Dependency CVE Scan', tool:'OWASP Dep-Check', accent:'var(--orange)',
+    detail:'Maven plugin checks all transitive JAR dependencies. Gate: CVSS base score less than 7.0. Produces HTML report per service. If a HIGH CVE found: pipeline fails, Jira ticket auto-created.',
+    blocked:'Prevents shipping known-vulnerable dependencies.' },
+  { id:'sec-4', num:'04', name:'IaC Security Scan', tool:'tfsec', accent:'var(--yellow)',
+    detail:'tfsec scans infra/terraform/ for misconfigurations. Checks: S3 public access, over-permissive security groups, KMS encryption on all data stores, IAM wildcard policies. Minimum severity: HIGH.',
+    blocked:'Ensures infrastructure-as-code cannot provision insecure cloud resources.' },
+  { id:'sec-5', num:'05', name:'Container Image Scan', tool:'Trivy', accent:'var(--yellow)',
+    detail:'Trivy scans the ECR-pushed image by immutable SHA. Checks OS packages AND application layer. Gate: --exit-code 1 --severity HIGH,CRITICAL. Immutable ECR tags guarantee the scanned image equals the deployed image.',
+    blocked:'Zero HIGH/CRITICAL CVEs enforced before any container reaches ECS.' },
+  { id:'sec-6', num:'06', name:'AWS WAF', tool:'Managed Rule Groups', accent:'var(--teal)',
+    detail:'AWS WAF on the ALB with managed rule groups: AWSManagedRulesCommonRuleSet, SQLiRuleSet, KnownBadInputsRuleSet. Rate limiting: 500 requests/min per IP. WAF logs stream to S3 and CloudWatch Logs Insights.',
+    blocked:'Blocks common web attacks and volumetric threats before application code.' },
+  { id:'sec-7', num:'07', name:'TLS Termination', tool:'ALB + ACM', accent:'var(--teal)',
+    detail:'ALB enforces ELBSecurityPolicy-TLS13-1-2-2021-06 — TLS 1.3 minimum. ACM certificate auto-renews. HTTP port 80 redirects to HTTPS. HSTS header enforced via ALB response headers rule.',
+    blocked:'All data in transit encrypted — no plaintext HTTP anywhere.' },
+  { id:'sec-8', num:'08', name:'OAuth2 Token Validation', tool:'Cognito JWKS', accent:'var(--blue)',
+    detail:'ALB Cognito integration validates RS256 JWTs against the JWKS endpoint on every request. Token expiry: 3600s enforced server-side. MFA required for admin and ops roles. Validation events logged to CloudWatch.',
+    blocked:'Unauthenticated requests return 401 and never reach a microservice.' },
+  { id:'sec-9', num:'09', name:'RBAC Policy Enforcement', tool:'IAM Service', accent:'var(--purple)',
+    detail:'Post-authentication: gateway middleware extracts the role claim from the JWT and checks against rbac-policy.yaml. admin=6 scopes, ops=3 scopes, viewer=2 scopes. Scope mismatch returns 403 Forbidden. Policy tested in CI via pytest tests/rbac/.',
+    blocked:'Authenticated users can only reach endpoints their role explicitly permits.' },
+  { id:'sec-10', num:'10', name:'Secrets Manager', tool:'AWS + KMS', accent:'var(--green)',
+    detail:'Zero secrets in code or environment variables. DB passwords and JWT_SECRET injected at ECS task start via the secrets block in the task definition. KMS encryption: alias/aws/secrets. Recovery window: 7 days. Per-service task roles grant access only to their own secrets.',
+    blocked:'No credential exposure even if container filesystem is compromised.' }
+];
+
+let attackRunning = false;
+
+function buildSecLayers() {
+  const c = document.getElementById('sec-layers-container');
+  SEC_LAYERS.forEach(l => {
+    const el = document.createElement('div');
+    el.className = 'sec-layer';
+    el.id = l.id;
+    const num = document.createElement('span');
+    num.className = 'sec-layer-num';
+    num.textContent = l.num;
+    const name = document.createElement('span');
+    name.className = 'sec-layer-name';
+    name.textContent = l.name;
+    const tool = document.createElement('span');
+    tool.className = 'sec-layer-tool';
+    tool.textContent = l.tool;
+    const dot = document.createElement('div');
+    dot.className = 'attack-dot';
+    dot.id = 'dot-' + l.id;
+    el.appendChild(num); el.appendChild(name); el.appendChild(tool); el.appendChild(dot);
+    el.onclick = () => selectSecLayer(l.id);
+    c.appendChild(el);
+  });
+}
+
+function selectSecLayer(id) {
+  const l = SEC_LAYERS.find(x => x.id === id);
+  document.querySelectorAll('.sec-layer').forEach(e => { e.classList.remove('active'); e.style.borderLeftColor = 'transparent'; });
+  const el = document.getElementById(id);
+  el.classList.add('active');
+  el.style.borderLeftColor = l.accent;
+  const det = document.getElementById('sec-detail');
+  det.classList.remove('empty');
+  det.style.display = 'block';
+
+  const title = document.createElement('div');
+  title.className = 'detail-title';
+  title.textContent = l.name;
+  const sub = document.createElement('div');
+  sub.className = 'detail-subtitle';
+  sub.style.color = l.accent;
+  sub.textContent = l.tool;
+  const body = document.createElement('div');
+  body.className = 'detail-body';
+  body.textContent = l.detail;
+  const blocked = document.createElement('div');
+  blocked.className = 'detail-body';
+  blocked.style.cssText = 'padding:10px;border:1px solid var(--border);background:var(--bg)';
+  const blockedIcon = document.createElement('span');
+  blockedIcon.style.color = 'var(--green)';
+  blockedIcon.textContent = 'Blocks: ';
+  blocked.appendChild(blockedIcon);
+  blocked.appendChild(document.createTextNode(l.blocked));
+
+  det.replaceChildren(title, sub, body, blocked);
+}
+
+async function traceAttackPath() {
+  if (attackRunning) return;
+  attackRunning = true;
+  document.querySelectorAll('.attack-dot').forEach(d => { d.className = 'attack-dot'; });
+  document.querySelectorAll('.sec-layer').forEach(e => { e.classList.remove('active'); e.style.borderLeftColor = 'transparent'; });
+  for (const l of SEC_LAYERS) {
+    const dot = document.getElementById('dot-' + l.id);
+    dot.className = 'attack-dot visible';
+    selectSecLayer(l.id);
+    await sleep(600);
+    dot.className = 'attack-dot visible blocked';
+    await sleep(300);
+  }
+  attackRunning = false;
+}
+
+// ══════════════════════════════════════════════════════════════
+// FLOW 4 — API GATEWAY
+// ══════════════════════════════════════════════════════════════
+const GW_ROLES = {
+  admin:  { label:'Admin', scopes:'products:read/write, orders:read/write, iam:read/manage', token:'[role:admin, scopes:products:read products:write orders:read orders:write iam:read iam:manage, exp:3600]' },
+  ops:    { label:'Ops Engineer', scopes:'products:read, orders:read/write', token:'[role:ops, scopes:products:read orders:read orders:write, exp:3600]' },
+  viewer: { label:'Read-only Viewer', scopes:'products:read, orders:read', token:'[role:viewer, scopes:products:read orders:read, exp:3600]' },
+  anon:   { label:'Anonymous', scopes:'(no token)', token:'(no Authorization header — unauthenticated)' }
+};
+
+const GW_RESPONSES = {
+  'GET:/api/v1/products':  { admin:'[{"id":1,"name":"Organic Oat Milk","price":1.79},{"id":2,"name":"Sourdough Loaf","price":2.50}]', ops:'[{"id":1,"name":"Organic Oat Milk","price":1.79}]', viewer:'[{"id":1,"name":"Organic Oat Milk","price":1.79}]' },
+  'POST:/api/v1/products': { admin:'{"id":3,"name":"New Product","price":3.99,"created":true}' },
+  'GET:/api/v1/orders':    { admin:'[{"id":"ORD-001","status":"dispatched"},{"id":"ORD-002","status":"pending"}]', ops:'[{"id":"ORD-001","status":"dispatched"}]', viewer:'[{"id":"ORD-001","status":"dispatched"}]' },
+  'POST:/api/v1/orders':   { admin:'{"id":"ORD-003","status":"created"}', ops:'{"id":"ORD-003","status":"created"}' },
+  'GET:/api/v1/iam/users': { admin:'[{"user":"s.vainer","role":"admin"},{"user":"ops1","role":"ops"}]' }
+};
+
+let currentRole = 'admin';
+let gwRunning = false;
+
+function buildGwFlow() {
+  const flow = document.getElementById('arch-flow');
+  const nodeDefs = [
+    {id:'client', icon:'💻', label:'Client'},
+    {id:'waf', icon:'🛡️', label:'WAF'},
+    {id:'alb', icon:'⚖️', label:'ALB TLS'},
+    {id:'cognito', icon:'🔐', label:'Cognito'},
+    {id:'rbac', icon:'🎛️', label:'RBAC Check'},
+    {id:'router', icon:'🔀', label:'Router'},
+  ];
+  nodeDefs.forEach((n, i) => {
+    if (i > 0) {
+      const arrow = document.createElement('div');
+      arrow.className = 'arch-arrow';
+      arrow.id = 'gw-arrow-' + i;
+      flow.appendChild(arrow);
+    }
+    const box = document.createElement('div');
+    box.className = 'arch-box';
+    box.id = 'gw-node-' + n.id;
+    const icon = document.createElement('div');
+    icon.className = 'arch-icon';
+    icon.textContent = n.icon;
+    const label = document.createElement('div');
+    label.className = 'arch-label';
+    label.textContent = n.label;
+    box.appendChild(icon); box.appendChild(label);
+    flow.appendChild(box);
+  });
+
+  // Service fork arrow
+  const forkArrow = document.createElement('div');
+  forkArrow.className = 'arch-arrow';
+  forkArrow.id = 'gw-arrow-6';
+  flow.appendChild(forkArrow);
+
+  const svcs = document.createElement('div');
+  svcs.className = 'arch-services';
+  [['products','📦','Products :8081'],['orders','🛒','Orders :8082'],['iam','👤','IAM :8083']].forEach(([id, icon, label]) => {
+    const b = document.createElement('div');
+    b.className = 'arch-box';
+    b.id = 'gw-node-' + id;
+    const ic = document.createElement('div'); ic.className = 'arch-icon'; ic.textContent = icon;
+    const lb = document.createElement('div'); lb.className = 'arch-label'; lb.textContent = label;
+    b.appendChild(ic); b.appendChild(lb);
+    svcs.appendChild(b);
+  });
+  flow.appendChild(svcs);
+
+  // Role cards
+  const rc = document.getElementById('role-cards');
+  Object.entries(GW_ROLES).forEach(([k, v]) => {
+    const el = document.createElement('div');
+    el.className = 'role-card' + (k === 'admin' ? ' active' : '');
+    el.id = 'role-' + k;
+    const name = document.createElement('div');
+    name.className = 'role-name';
+    name.textContent = v.label;
+    const scopes = document.createElement('div');
+    scopes.className = 'role-scopes';
+    scopes.textContent = v.scopes.slice(0, 45) + (v.scopes.length > 45 ? '...' : '');
+    el.appendChild(name); el.appendChild(scopes);
+    el.onclick = () => selectRole(k);
+    rc.appendChild(el);
+  });
+  document.getElementById('token-display').textContent = GW_ROLES.admin.token;
+
+  // Endpoint chips
+  const eps = document.getElementById('ep-selector');
+  ['GET /api/v1/products','POST /api/v1/products','GET /api/v1/orders','POST /api/v1/orders','GET /api/v1/iam/users'].forEach(ep => {
+    const [m, u] = ep.split(' ');
+    const chip = document.createElement('div');
+    chip.className = 'ep-chip';
+    chip.textContent = ep;
+    chip.onclick = () => {
+      document.querySelectorAll('.ep-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      document.getElementById('gw-method').value = m;
+      document.getElementById('gw-url').value = u;
+    };
+    eps.appendChild(chip);
+  });
+}
+
+function selectRole(r) {
+  currentRole = r;
+  document.querySelectorAll('.role-card').forEach(c => c.classList.remove('active'));
+  const el = document.getElementById('role-' + r);
+  if (el) el.classList.add('active');
+  document.getElementById('token-display').textContent = GW_ROLES[r].token;
+}
+
+function resetGwNodes() {
+  ['client','waf','alb','cognito','rbac','router','products','orders','iam'].forEach(id => {
+    const el = document.getElementById('gw-node-' + id);
+    if (el) el.className = 'arch-box';
+  });
+  for (let i = 1; i <= 6; i++) {
+    const a = document.getElementById('gw-arrow-' + i);
+    if (a) a.className = 'arch-arrow';
+  }
+}
+
+async function sendGwRequest() {
+  if (gwRunning) return;
+  gwRunning = true;
+  const btn = document.getElementById('gw-send-btn');
+  btn.disabled = true;
+  const method = document.getElementById('gw-method').value;
+  const url = document.getElementById('gw-url').value;
+  const key = method + ':' + url;
+  const role = currentRole;
+  resetGwNodes();
+  document.getElementById('gw-response').textContent = '// Processing...';
+  addLog('gw-log', 'info', method + ' ' + url + ' — role:' + role);
+
+  const activate = async (nodeId, arrowIdx, error) => {
+    const node = document.getElementById('gw-node-' + nodeId);
+    if (node) node.className = 'arch-box ' + (error ? 'error-route' : 'active-route');
+    if (arrowIdx) {
+      const arr = document.getElementById('gw-arrow-' + arrowIdx);
+      if (arr) arr.className = 'arch-arrow ' + (error ? 'error-shoot' : 'shoot');
+    }
+    await sleep(350);
+  };
+
+  await activate('client');
+  await activate('waf', 1);
+
+  if (role === 'anon') {
+    await activate('alb', 2);
+    await activate('cognito', 3, true);
+    document.getElementById('gw-response').textContent = '{"error":"Unauthorized","code":401,"message":"No valid Bearer token"}';
+    addLog('gw-log', 'error', '401 Unauthorized — ' + method + ' ' + url);
+    gwRunning = false; btn.disabled = false; return;
+  }
+
+  await activate('alb', 2);
+  await activate('cognito', 3);
+  await activate('rbac', 4);
+
+  const resp = GW_RESPONSES[key];
+  if (!resp) {
+    await activate('router', 5, true);
+    document.getElementById('gw-response').textContent = '{"error":"Not Found","code":404}';
+    addLog('gw-log', 'warn', '404 Not Found — ' + method + ' ' + url);
+    gwRunning = false; btn.disabled = false; return;
+  }
+
+  const allowed = resp[role];
+  if (!allowed) {
+    const rbacEl = document.getElementById('gw-node-rbac');
+    if (rbacEl) rbacEl.className = 'arch-box error-route';
+    document.getElementById('gw-response').textContent = '{"error":"Forbidden","code":403,"message":"Insufficient scope"}';
+    addLog('gw-log', 'error', '403 Forbidden — role:' + role + ' lacks scope for ' + method + ' ' + url);
+    gwRunning = false; btn.disabled = false; return;
+  }
+
+  await activate('router', 5);
+  const svc = ['products','orders','iam'].find(s => url.includes(s));
+  if (svc) await activate(svc, 6);
+
+  const code = method === 'POST' ? 201 : 200;
+  document.getElementById('gw-response').textContent = JSON.stringify(JSON.parse(allowed), null, 2);
+  addLog('gw-log', 'success', code + ' OK — ' + method + ' ' + url + ' (' + (Math.floor(Math.random()*80)+40) + 'ms)');
+  gwRunning = false; btn.disabled = false;
+}
+
+// ══════════════════════════════════════════════════════════════
+// FLOW 5 — TERRAFORM
+// ══════════════════════════════════════════════════════════════
+const TF_STEPS = [
+  { id:'tf-01', label:'Local Dev', mode:'manual', icon:'💻',
+    code:'# Pattern: for_each over services map\nresource "aws_ecs_service" "services" {\n  for_each      = var.services\n  name          = "${var.app_name}-${each.key}"\n  cluster       = aws_ecs_cluster.main.id\n  desired_count = each.value.desired_count\n  launch_type   = "FARGATE"\n}\n\n# Validate locally\nterraform fmt\nterraform validate',
+    detail:'Author main.tf using for_each = var.services — one ECS service, task definition, IAM role, ECR repo, and CloudWatch alarms per service with zero code duplication. terraform fmt and terraform validate run locally before any commit.' },
+  { id:'tf-02', label:'terraform plan', mode:'auto-CI', icon:'📋',
+    code:'# CI: staging plan\nterraform init \\\n  -backend-config="key=staging/terraform.tfstate" \\\n  -reconfigure\n\nterraform plan \\\n  -out=staging.plan \\\n  -compact-warnings\n\n# Plan output reviewed in MR diff\n# >5 resource changes = architect review required',
+    detail:'GitLab CI runs terraform plan on every merge request push. The plan output appears in the MR diff. If the plan touches more than 5 resources, a mandatory review from the Enterprise Integration Architect is required.' },
+  { id:'tf-03', label:'Remote State Lock', mode:'blocking', icon:'🔒',
+    code:'# S3 remote state backend\nterraform {\n  backend "s3" {\n    bucket         = "ocadoflow-terraform-state"\n    key            = "staging/terraform.tfstate"\n    region         = "eu-west-1"\n    dynamodb_table = "ocadoflow-tf-locks"\n    encrypt        = true\n  }\n}\n\n# Separate state keys per environment:\n# staging/terraform.tfstate\n# production/terraform.tfstate',
+    detail:'S3 bucket stores state with KMS encryption and versioning. DynamoDB table ocadoflow-tf-locks prevents concurrent applies. Lock acquired at terraform apply start, released on completion or error. Separate state files per environment prevent cross-environment changes.' },
+  { id:'tf-04', label:'Staging Apply', mode:'auto', icon:'🚀',
+    code:'# Auto-applied on main branch push\nterraform apply -auto-approve staging.plan\n\n# Force ECS re-deployment\nfor SERVICE in products orders iam; do\n  aws ecs update-service \\\n    --cluster ocadoflow-cluster \\\n    --service ocadoflow-$SERVICE \\\n    --force-new-deployment \\\n    --region eu-west-1\ndone\n\n# Wait for stability\naws ecs wait services-stable \\\n  --cluster ocadoflow-cluster',
+    detail:'Automatically triggered on every push to main. Applies infrastructure changes then triggers force-new-deployment on all 3 ECS services, waits for stable. Deployment circuit breaker enabled — if health checks fail during rollout, ECS reverts automatically.' },
+  { id:'tf-05', label:'Production Gate', mode:'manual', icon:'🔐',
+    code:'# Only on release/* branches\n# gitlab-ci.yml:\n#   when: manual\n#   needs:\n#     - verify:smoke-tests\n#     - verify:rbac-live\n\n# Engineer clicks play in GitLab UI\nterraform init \\\n  -backend-config="key=production/terraform.tfstate"\nterraform plan -out=prod.plan -compact-warnings',
+    detail:'HUMAN GATE — engineer must click play in GitLab UI. Only available on release/* branches. Both verify:smoke-tests and verify:rbac-live must be green. Ensures no staging-untested change ever reaches production automatically.' },
+  { id:'tf-06', label:'Production Apply', mode:'auto-post-gate', icon:'✅',
+    code:'terraform apply -auto-approve prod.plan\n\n# Auto-scaling policy (CPU tracking)\nresource "aws_appautoscaling_policy" "cpu" {\n  for_each    = var.services\n  policy_type = "TargetTrackingScaling"\n  target_tracking_scaling_policy_configuration {\n    predefined_metric_type = "ECSServiceAverageCPUUtilization"\n    target_value       = 70.0\n    scale_out_cooldown = 60\n    scale_in_cooldown  = 300\n  }\n}\n\n# Post-apply health validation\nansible-playbook playbook.yml -t health',
+    detail:'After manual approval, Terraform applies the production plan. ECS deployment circuit breaker (rollback=true) provides automatic rollback if health checks fail. Auto-scaling CPU tracking at 70%. Ansible health play validates all endpoints post-deploy.' }
+];
+
+let tfRunning = false;
+
+function buildTfSteps() {
+  const c = document.getElementById('tf-steps-container');
+  const modeColors = {manual:'var(--yellow)',auto:'var(--green)','auto-CI':'var(--blue)',blocking:'var(--red)','auto-post-gate':'var(--green)'};
+  TF_STEPS.forEach((s, i) => {
+    const wrap = document.createElement('div');
+    const node = document.createElement('div');
+    node.className = 'step-node';
+    node.id = s.id;
+    node.onclick = () => selectTfStep(s.id);
+    const icon = document.createElement('span');
+    icon.className = 'step-icon';
+    icon.textContent = s.icon;
+    const dot = document.createElement('div');
+    dot.className = 'step-dot';
+    const meta = document.createElement('div');
+    meta.className = 'step-meta';
+    const timeEl = document.createElement('span');
+    timeEl.className = 'step-time';
+    timeEl.style.color = modeColors[s.mode] || 'var(--muted)';
+    timeEl.textContent = s.mode;
+    const labelEl = document.createElement('span');
+    labelEl.className = 'step-label';
+    labelEl.textContent = s.label;
+    meta.appendChild(timeEl); meta.appendChild(labelEl);
+    node.appendChild(icon); node.appendChild(dot); node.appendChild(meta);
+    wrap.appendChild(node);
+    if (i < TF_STEPS.length - 1) {
+      const conn = document.createElement('div');
+      conn.className = 'step-connector';
+      conn.id = 'tf-conn-' + i;
+      wrap.appendChild(conn);
+    }
+    c.appendChild(wrap);
+  });
+}
+
+function selectTfStep(id) {
+  const s = TF_STEPS.find(x => x.id === id);
+  document.querySelectorAll('#flow-terraform .step-node').forEach(n => n.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  const det = document.getElementById('tf-detail');
+  det.classList.remove('empty');
+  det.style.display = 'block';
+  const title = document.createElement('div');
+  title.className = 'detail-title';
+  title.textContent = s.icon + ' ' + s.label;
+  const sub = document.createElement('div');
+  sub.className = 'detail-subtitle';
+  sub.textContent = s.mode.toUpperCase();
+  const body = document.createElement('div');
+  body.className = 'detail-body';
+  body.textContent = s.detail;
+  const code = document.createElement('div');
+  code.className = 'code-block';
+  code.textContent = s.code;
+  det.replaceChildren(title, sub, body, code);
+}
+
+async function runTerraform() {
+  if (tfRunning) return;
+  tfRunning = true;
+  const btn = document.getElementById('tf-run-btn');
+  btn.disabled = true;
+  TF_STEPS.forEach((s, i) => {
+    setDot(s.id, '');
+    const c = document.getElementById('tf-conn-' + i);
+    if (c) c.classList.remove('active');
+  });
+  for (let i = 0; i < TF_STEPS.length; i++) {
+    const s = TF_STEPS[i];
+    setDot(s.id, 'running');
+    selectTfStep(s.id);
+    const dur = {manual:1200,'auto-CI':900,blocking:1000,auto:1100,'auto-post-gate':900}[s.mode] || 900;
+    await sleep(dur);
+    setDot(s.id, 'done');
+    const c = document.getElementById('tf-conn-' + i);
+    if (c) c.classList.add('active');
+    await sleep(150);
+  }
+  btn.disabled = false;
+  tfRunning = false;
+}
+
+// ══════════════════════════════════════════════════════════════
+// FLOW 6 — ACCESS MANAGEMENT
+// ══════════════════════════════════════════════════════════════
+const AM_STEPS = [
+  { id:'am-01', icon:'📋', label:'Access Request',
+    detail:'IT Portal Request\n\nFields: requestor email, business justification, requested role (admin/ops/viewer), target system.\nSLA: 4 hours standard, 30 minutes emergency break-glass.\nJira ticket auto-created with SLA timer. Line manager receives approval request.',
+    audit:{level:'info', msg:'ACCESS_REQUEST submitted — user:j.smith@ocado.com role:ops system:OcadoFlow'} },
+  { id:'am-02', icon:'✅', label:'Manager Approval',
+    detail:'Four-Eyes Approval\n\nManager reviews least-privilege justification.\nFor admin role: two separate approvals required (four-eyes principle).\nApproved: logged with approved_by, approved_at, justification.\nDenied: Jira ticket closed, requestor notified, reason in audit trail.',
+    audit:{level:'success', msg:'ACCESS_APPROVED — approver:manager@ocado.com role:ops justification:on-call-coverage'} },
+  { id:'am-03', icon:'🏗️', label:'Cognito Provisioning',
+    detail:'User Pool Provisioning\n\nCommand: aws cognito-idp admin-create-user --user-pool-id eu-west-1_XXXXX --username j.smith\n\nMFA enforced for admin and ops roles (TOTP). Temporary password sent via SES. User must reset on first login. Cognito group maps to RBAC role.',
+    audit:{level:'info', msg:'COGNITO_USER_CREATED — username:j.smith group:ops mfa:enabled region:eu-west-1'} },
+  { id:'am-04', icon:'🔐', label:'Credential Issuance',
+    detail:'OAuth2 Token Flow\n\nHumans: browser redirect to Cognito hosted UI, returns JWT (RS256, exp=3600s).\nService accounts: client credentials flow.\nJWT claims: sub, role, scope.\nToken stored client-side only — never logged, never persisted server-side.\nRefresh token TTL: 30 days.',
+    audit:{level:'info', msg:'TOKEN_ISSUED — sub:j.smith role:ops exp:3600s alg:RS256'} },
+  { id:'am-05', icon:'🎛️', label:'RBAC Assignment',
+    detail:'Ansible RBAC Sync\n\nTask: IAM | Sync RBAC roles to IAM service\nCommand: PUT /api/v1/iam/roles/ops with admin Bearer token.\nRole mapping: admin=6 scopes, ops=3 scopes, viewer=2 scopes.\nGateway reads RBAC at request time (no caching).\nAny scope change requires CI test:rbac-policy to pass.',
+    audit:{level:'success', msg:'RBAC_SYNCED — role:ops scopes:3 updated_by:ansible-automation'} },
+  { id:'am-06', icon:'📝', label:'Audit Log',
+    detail:'CloudWatch Audit Trail\n\nLog group: /ecs/ocadoflow/iam\nFields: timestamp, request_id, user, role, scope_requested, decision (allow/deny), service, method, path.\nRetention: 90 days (max_log_retention_days in Ansible vars).\nGDPR compliant: no PII in URL paths.',
+    audit:{level:'info', msg:'AUDIT_LOG_WRITTEN — retention:90d fields:9 pii:none'} },
+  { id:'am-07', icon:'🔄', label:'Rotation & Expiry',
+    detail:'Credential Lifecycle\n\nJWT expiry: 3600s (Cognito-enforced).\nService account secrets: Secrets Manager rotation Lambda every 30 days.\nAdmin credentials: forced rotation every 90 days via Cognito password policy.\nOffboarding: immediate admin-disable-user + admin-user-global-sign-out.\nAll rotation events logged to audit trail.',
+    audit:{level:'success', msg:'ROTATION_SCHEDULED — type:service-account next:2026-04-15 manager:secrets-manager'} }
+];
+
+let accessRunning = false;
+
+function buildAmStrip() {
+  const strip = document.getElementById('am-strip');
+  AM_STEPS.forEach((s, i) => {
+    if (i > 0) {
+      const arr = document.createElement('div');
+      arr.className = 'am-arrow';
+      arr.id = 'am-arrow-' + i;
+      strip.appendChild(arr);
+    }
+    const el = document.createElement('div');
+    el.className = 'am-step';
+    el.id = s.id;
+    const icon = document.createElement('div');
+    icon.className = 'am-icon';
+    icon.textContent = s.icon;
+    const label = document.createElement('div');
+    label.className = 'am-label';
+    label.textContent = s.label;
+    el.appendChild(icon); el.appendChild(label);
+    el.onclick = () => selectAmStep(s.id);
+    strip.appendChild(el);
+  });
+
+  // RBAC table
+  const table = document.getElementById('rbac-table');
+  const scopes = ['products:read','products:write','orders:read','orders:write','iam:read','iam:manage'];
+  const adminS = scopes;
+  const opsS = ['products:read','orders:read','orders:write'];
+  const viewerS = ['products:read','orders:read'];
+  scopes.forEach(sc => {
+    const tr = document.createElement('tr');
+    tr.style.borderBottom = '1px solid var(--border)';
+    [sc, adminS.includes(sc), opsS.includes(sc), viewerS.includes(sc)].forEach((val, ci) => {
+      const td = document.createElement('td');
+      td.style.padding = '5px 8px';
+      if (ci === 0) {
+        td.style.cssText = 'padding:5px 8px;color:var(--text);font-size:10px';
+        td.textContent = val;
+      } else {
+        td.style.textAlign = 'center';
+        const colors = ['var(--green)','var(--blue)','var(--muted)'];
+        const tick = document.createElement('span');
+        tick.style.color = val ? colors[ci-1] : 'var(--muted2)';
+        tick.textContent = val ? '✓' : '—';
+        td.appendChild(tick);
+      }
+      tr.appendChild(td);
+    });
+    table.appendChild(tr);
+  });
+}
+
+function selectAmStep(id) {
+  const s = AM_STEPS.find(x => x.id === id);
+  document.querySelectorAll('.am-step').forEach(e => e.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  const det = document.getElementById('access-detail');
+  det.classList.remove('empty');
+  det.style.display = 'block';
+  const title = document.createElement('div');
+  title.className = 'detail-title';
+  title.textContent = s.icon + ' ' + s.label;
+  const body = document.createElement('div');
+  body.className = 'detail-body';
+  body.style.marginTop = '8px';
+  body.style.whiteSpace = 'pre-wrap';
+  body.textContent = s.detail;
+  det.replaceChildren(title, body);
+}
+
+async function runAccessFlow() {
+  if (accessRunning) return;
+  accessRunning = true;
+  const btn = document.getElementById('access-run-btn');
+  btn.disabled = true;
+  document.getElementById('access-audit').replaceChildren();
+  AM_STEPS.forEach((s, i) => {
+    const el = document.getElementById(s.id);
+    if (el) el.className = 'am-step';
+    const arr = document.getElementById('am-arrow-' + i);
+    if (arr) arr.classList.remove('active');
+  });
+
+  const approved = Math.random() > 0.3;
+
+  for (let i = 0; i < AM_STEPS.length; i++) {
+    const s = AM_STEPS[i];
+    if (i > 0) {
+      const arr = document.getElementById('am-arrow-' + i);
+      if (arr) arr.classList.add('active');
+    }
+    const el = document.getElementById(s.id);
+    if (el) el.className = 'am-step running';
+    selectAmStep(s.id);
+    await sleep(700);
+
+    if (i === 1 && !approved) {
+      el.className = 'am-step denied';
+      addLog('access-audit', 'error', 'ACCESS_DENIED — insufficient justification — ticket DEV-4821 closed');
+      const det = document.getElementById('access-detail');
+      det.style.display = 'block';
+      const title = document.createElement('div');
+      title.className = 'detail-title';
+      title.textContent = '✅ Manager Approval';
+      const body = document.createElement('div');
+      body.className = 'detail-body';
+      body.style.cssText = 'margin-top:8px;color:var(--red)';
+      body.textContent = 'Request DENIED — insufficient business justification. Jira ticket DEV-4821 closed. Requestor notified via email.';
+      det.replaceChildren(title, body);
+      accessRunning = false; btn.disabled = false; return;
+    }
+
+    el.className = 'am-step done';
+    addLog('access-audit', s.audit.level, s.audit.msg);
+    await sleep(200);
+  }
+  btn.disabled = false;
+  accessRunning = false;
+}
+
+// ══════════════════════════════════════════════════════════════
+// FLOW 7 — INCIDENT RESPONSE
+// ══════════════════════════════════════════════════════════════
+const IR_STEPS = [
+  { id:'ir-01', label:'CloudWatch Alarm', colour:'var(--red)', delay:0,
+    log:{level:'error', msg:'[ALARM] ocadoflow-orders-cpu-high — CPU=87% (threshold:80%)'},
+    detail:'Metric Alarm Triggered\n\nAlarm: ocadoflow-orders-cpu-high\nThreshold: CPU > 80% for 2 consecutive 60-second periods\nNamespace: AWS/ECS\nDimensions: ClusterName=ocadoflow-cluster, ServiceName=ocadoflow-orders\nState transition: OK -> ALARM' },
+  { id:'ir-02', label:'SNS Notification', colour:'var(--orange)', delay:800,
+    log:{level:'warn', msg:'[SNS] ocadoflow-alerts -> HTTPS endpoint fired (attempt 1/3)'},
+    detail:'SNS Fan-out\n\nTopic: ocadoflow-alerts (KMS encrypted: alias/aws/sns)\nSubscription: HTTPS endpoint to Slack Lambda\nPayload: AlarmName, NewStateValue, StateChangeTime, AWSAccountId\nDelivery policy: 3x retry with exponential backoff' },
+  { id:'ir-03', label:'Slack Alert', colour:'var(--yellow)', delay:1500,
+    log:{level:'warn', msg:'[SLACK] #incidents — [ALARM] ocadoflow-orders CPU=87% — @oncall tagged'},
+    detail:'Team Notification\n\nChannel: #incidents\nMessage: [ALARM] ocadoflow-orders CPU=87% — 2026-03-16T13:42:00Z\nColour: red (#ff4d6a)\nPagerDuty on-call engineer tagged\nP1 SLA: acknowledge within 15 minutes' },
+  { id:'ir-04', label:'Engineer Triage', colour:'var(--blue)', delay:3000,
+    log:{level:'info', msg:'[TRIAGE] CloudWatch Logs Insights query running — checking error rate'},
+    detail:'Initial Investigation\n\nCloudWatch Logs Insights:\n  fields @timestamp, level, message\n  | filter level=\'ERROR\'\n  | sort @timestamp desc\n  | limit 50\n\nChecks: ECS task count vs desired, ALB 5xx rate, RDS connections\nJira P1 ticket DEV-INC-0892 created' },
+  { id:'ir-05', label:'Rollback Decision', colour:'var(--purple)', delay:5000,
+    log:{level:'info', msg:'[DECISION] Code regression identified — ECS rollback selected (<5min path)'},
+    detail:'Decision Tree\n\n✓ Code regression       -> ECS rollback        (<5 min)\n  Config change          -> Terraform revert     (~15 min)\n  Data corruption        -> RDS snapshot restore (~30 min)\n\nOutcome: CPU spike correlates with last deploy commit.\nECS rollback path selected. Decision logged to Jira.' },
+  { id:'ir-06', label:'ECS Rollback', colour:'var(--teal)', delay:6000,
+    log:{level:'warn', msg:'[ROLLBACK] GitLab rollback:production triggered — reverting task definition'},
+    detail:'Rollback Execution\n\nGitLab: trigger rollback:production manual job\n\nPREV_SHA=$(git log --format="%H" -n 2 | tail -1 | cut -c1-8)\n\naws ecs update-service \\\n  --cluster ocadoflow-cluster \\\n  --service ocadoflow-orders \\\n  --task-definition ocadoflow-orders:PREV_REVISION \\\n  --force-new-deployment\n\naws ecs wait services-stable\nETA: 3-5 minutes for Fargate' },
+  { id:'ir-07', label:'Service Verified', colour:'var(--green)', delay:9000,
+    log:{level:'success', msg:'[RESOLVED] All smoke tests passed — CPU=21% — ALARM -> OK'},
+    detail:'Post-Rollback Verification\n\npytest tests/smoke/ -v --base-url=https://api.ocadoflow.io\n\nAll endpoints returning expected HTTP codes: PASS\nCloudWatch CPU returns to 21%\nAlarm transitions: ALARM -> OK\n\nSlack: [RESOLVED] ocadoflow-orders restored — SHA=a3f7c2b' },
+  { id:'ir-08', label:'Post-Incident Doc', colour:'var(--muted)', delay:10500,
+    log:{level:'info', msg:'[PIR] Post-Incident Review doc created — action items assigned'},
+    detail:'Post-Incident Review (within 24h)\n\nSections:\n  - Timeline\n  - Root Cause\n  - Impact (users affected, duration)\n  - Remediation steps\n  - Action Items (Jira tickets)\n\nShared with Enterprise Integration Architect\nBlameless culture — focus on systemic improvement' }
+];
+
+let irRunning = false;
+
+function buildIrSteps() {
+  const c = document.getElementById('ir-steps-container');
+  IR_STEPS.forEach((s, i) => {
+    const wrap = document.createElement('div');
+    const node = document.createElement('div');
+    node.className = 'step-node';
+    node.id = s.id;
+    node.onclick = () => selectIrStep(s.id);
+    const dot = document.createElement('div');
+    dot.className = 'step-dot';
+    const meta = document.createElement('div');
+    meta.className = 'step-meta';
+    const timeEl = document.createElement('span');
+    timeEl.className = 'step-time';
+    timeEl.style.color = s.colour;
+    timeEl.textContent = s.delay === 0 ? 'T+0s' : 'T+' + (s.delay/1000) + 's';
+    const labelEl = document.createElement('span');
+    labelEl.className = 'step-label';
+    labelEl.textContent = s.label;
+    meta.appendChild(timeEl); meta.appendChild(labelEl);
+    node.appendChild(dot); node.appendChild(meta);
+    wrap.appendChild(node);
+    if (i < IR_STEPS.length - 1) {
+      const conn = document.createElement('div');
+      conn.className = 'step-connector';
+      conn.id = 'ir-conn-' + i;
+      wrap.appendChild(conn);
+    }
+    c.appendChild(wrap);
+  });
+}
+
+function selectIrStep(id) {
+  const s = IR_STEPS.find(x => x.id === id);
+  document.querySelectorAll('#flow-incident .step-node').forEach(n => n.classList.remove('active'));
+  const el = document.getElementById(id);
+  el.classList.add('active');
+  el.style.borderLeftColor = s.colour;
+  const det = document.getElementById('ir-detail');
+  det.classList.remove('empty');
+  det.style.display = 'block';
+  const title = document.createElement('div');
+  title.className = 'detail-title';
+  title.style.color = s.colour;
+  title.textContent = s.label;
+  const sub = document.createElement('div');
+  sub.className = 'detail-subtitle';
+  sub.textContent = s.delay === 0 ? 'T+0s — Incident start' : 'T+' + (s.delay/1000) + 's';
+  const body = document.createElement('div');
+  body.className = 'detail-body';
+  body.style.cssText = 'margin-top:12px;white-space:pre-wrap';
+  body.textContent = s.detail;
+  det.replaceChildren(title, sub, body);
+}
+
+async function simulateIncident() {
+  if (irRunning) return;
+  irRunning = true;
+  const btn = document.getElementById('ir-run-btn');
+  btn.disabled = true;
+  document.getElementById('ir-log').replaceChildren();
+  IR_STEPS.forEach((s, i) => {
+    setDot(s.id, '');
+    const el = document.getElementById(s.id);
+    if (el) el.style.borderLeftColor = 'transparent';
+    const c = document.getElementById('ir-conn-' + i);
+    if (c) c.classList.remove('active');
+  });
+
+  const timers = IR_STEPS.map((s, i) => new Promise(resolve => {
+    setTimeout(async () => {
+      setDot(s.id, 'running');
+      selectIrStep(s.id);
+      addLog('ir-log', s.log.level, s.log.msg);
+      await sleep(500);
+      setDot(s.id, s.id === 'ir-07' ? 'done' : (s.id === 'ir-01' || s.id === 'ir-06' ? 'error' : 'done'));
+      const c = document.getElementById('ir-conn-' + i);
+      if (c) c.classList.add('active');
+      resolve();
+    }, s.delay);
+  }));
+
+  await Promise.all(timers);
+  await sleep(500);
+  btn.disabled = false;
+  irRunning = false;
+}
+
+// ══════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  buildDailySteps();
+  buildPipelineStrip();
+  buildSecLayers();
+  buildGwFlow();
+  buildTfSteps();
+  buildAmStrip();
+  buildIrSteps();
+  setTimeout(() => {
+    selectDailyStep('dd-01');
+    selectStage('build');
+    selectSecLayer('sec-1');
+    selectTfStep('tf-01');
+    selectAmStep('am-01');
+    selectIrStep('ir-01');
+  }, 100);
+});
+</script>
+</body>
+</html>
