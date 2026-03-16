@@ -1,0 +1,177 @@
+**Stanislav Vainer**
+
+London, UK \| +44 783 1993857 \| stanislav.vainer@outlook.com \|
+[[LinkedIn]{.underline}](https://www.linkedin.com/in/stanislav-vainer-808719aa/)
+
+## **Professional Summary**
+
+DevOps Engineer with 7+ years of experience across **AWS, Kubernetes,
+Docker, Terraform, and Ansible**, building and operating **cloud-native
+and hybrid infrastructure** at scale. Consistent track record of
+measurable delivery: **35% infrastructure cost reduction**, **99.8%
+uptime**, and **CI/CD pipelines cutting deployment times by 70%**.
+Experienced working across agile teams and client-facing technical
+environments.
+
+Strong foundation in **infrastructure design, automation, and security**
+--- including advanced work in **IAM**, **RBAC**, and **SIEM** --- with
+experience spanning the full delivery lifecycle: provisioning,
+integration, monitoring, incident response, and documentation. Eligible
+for UK SC and DV security clearance.
+
+**Technical Skills**
+
+-   **Cloud & Infrastructure:** AWS (EC2, S3, IAM, ELB, Auto Scaling,
+    > VPC, CloudWatch), GCP (foundational), Terraform, Ansible
+
+-   **Containers & Orchestration:** Kubernetes, Docker, Helm Charts
+
+-   **CI/CD & Automation:** GitLab CI/CD, Jenkins, Maven, Nexus, Bash,
+    > Python scripting
+
+-   **Integration Platforms:** Mulesoft (Anypoint Platform), API gateway
+    > configuration, iPaaS environments
+
+-   **Security & Access Management:** IAM policies, RBAC, OAUTH2
+    > credential management, Least-Privilege Access Controls, SIEM
+
+-   **Monitoring & Observability:** Prometheus, Grafana, CloudWatch,
+    > Zabbix, SRE practices
+
+-   **Networking:** TCP/IP, DNS, VLAN, LAN/WAN, NGINX reverse proxy,
+    > load balancing
+
+-   **Databases:** MySQL, Redis caching
+
+-   **Methodologies:** Agile/Scrum, Infrastructure as Code, GitOps, SRE
+
+## **Professional Experience**
+
+### **Contract DevOps Engineer** *Nov 2023 -- Dec 2025*
+
+*Zoro.com, USA*
+
+*Supported cloud-native e-commerce platform serving high-traffic
+workloads in an Agile/Scrum team.*
+
+-   Modernised **AWS** provisioning (EC2, S3, IAM, ELB, Auto Scaling)
+    > using **Terraform** and **Ansible** playbooks, automating resource
+    > scheduling via **Jenkins** and **reducing manual setup effort by
+    > 50%**.
+
+-   Maintained and optimised **CI/CD pipelines** in **GitLab CI**,
+    > automating **Maven** builds (JAR, WAR, EAR) and deployments to
+    > **Nexus**, significantly reducing build failures and manual
+    > release overhead.
+
+-   Collaborated with senior engineers in managing **Kubernetes
+    > clusters** and deploying services using **Helm** charts,
+    > **improving release consistency by 40%.**
+
+-   Managed **OAUTH2** credential rotation and **IAM** access policies
+    > for integration services, ensuring secure data flow across
+    > platform **APIs**.
+
+-   Improved **MySQL** query performance by approximately **30%**
+    > through **Redis** caching implementation.
+
+-   Build monitoring and alerting dashboards with **Prometheus/Grafana**
+    > followed by **SRE practices,** strengthened application incident
+    > response times by **20%.**
+
+-   Contributed to a 20% increase in user engagement through platform
+    > stability and performance improvements.
+
+### **Career Break --- Paternity Leave** *Dec 2025 -- Present*
+
+*Took planned paternity leave following the birth of a second child.
+Actively seeking a new role and available to start immediately.*
+
+### 
+
+### 
+
+### **Infrastructure & Security Engineer** *Aug 2016 -- Nov 2023*
+
+*BC Politon, Ukraine*
+
+*Designed and operated hybrid IT infrastructure for a 200+ tenant
+business centre, integrating on-premises systems with AWS cloud.*
+
+-   Architected hybrid **cloud/on-prem** infrastructure **achieving
+    > 99.8% uptime** across all services and **reducing infrastructure
+    > costs by 35%**.
+
+-   Refactored a legacy monolithic **Node.js** application into
+    > containerised microservices and **RESTful APIs**, improving
+    > scalability and system modularity.
+
+-   Established and enforced security policies including **IAM**,
+    > **RBAC**, and **Least-Privilege Access Controls**, serving as the
+    > primary point of contact for access management procedures.
+
+-   Deployed and maintained network infrastructure (TCP/IP, DNS, VLAN,
+    > LAN/WAN) with **NGINX reverse proxies** and load-balanced ingress
+    > for secure gateway access.
+
+-   Engineered a high-efficiency video streaming and surveillance
+    > solution, **reducing bandwidth utilisation by 50%** with data
+    > replication to **AWS S3** for long-term retention.
+
+-   Implemented monitoring across hybrid estate using **CloudWatch**
+    > (AWS) and **Zabbix** (on-prem), reducing incident detection time
+    > by 40%.
+
+-   Introduced **Git** version control for application code and
+    > configuration files, **reducing time to resolve code-related
+    > issues by 80%**.
+
+-   **Documented system configurations**, access control procedures, and
+    > operational runbooks, ensuring knowledge continuity and audit
+    > readiness.
+
+### **Network Engineer** *Dec 2014 -- May 2016*
+
+*Technion -- Israel Institute of Technology,* Israel
+
+-   Supported campus-wide network for **10,000+ users**, ensuring
+    > compliance/security.
+
+-   Improved utilisation by **45%** through **VMware & Hyper-V**
+    > deployments.
+
+-   Administered **AD & Group Policies**, automating user provisioning
+    > time by **60%**.
+
+-   Update CLI troubleshooting to scheduled cycles which reduce downtime
+    > by **20%**.
+
+### **Junior System Administrator** *Jun 2014 -- Dec 2014*
+
+*Technion -- Israel Institute of Technology,* Israel
+
+-   Maintained 60+ classrooms', achieving near **zero unplanned
+    > downtime**.
+
+-   Automated routine tasks with **Bash** & **Python** saving **3+ hours
+    > weekly**.
+
+-   Provided Tier 2 support for students, resolving **90% of incidents**
+    > on first contact.
+
+**Education & Certifications**
+
+**B.Sc. Applied Mathematics** -- National University of Water and
+Environmental Engineering
+
+**Professional Certifications:**
+
+-   Technion Certified Security Expert & Exchange Administrator
+
+-   Technion Certified Security Administrator
+
+-   Microsoft Certified Solutions Expert (MCSE) -- Server Infrastructure
+
+-   Microsoft Certified Solutions Associate (MCSA) -- Windows Server
+
+-   Microsoft Certified Professional (MCP)
